@@ -1,3 +1,4 @@
+import { Split } from "lucide-react";
 import { useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
@@ -30,7 +31,7 @@ export function Breakdown({ task }: { task: Task }) {
       await s.reload(); setSubs(null); s.toast(`Created ${made.map((t) => t.key).join(", ")}`);
     } catch (e) { s.toast((e as Error).message); } finally { setBusy(false); }
   };
-  if (!subs) return <button className="ai-btn" onClick={propose} disabled={busy}>{busy ? "Thinking…" : "✦ Break down with AI"}</button>;
+  if (!subs) return <button onClick={propose} disabled={busy} title="Claude proposes subtasks with estimates and the order they depend on"><Split className="i sm" aria-hidden />{busy ? "Splitting" : "Split into subtasks"}</button>;
   const pts = subs.filter((x) => x.keep).reduce((a, x) => a + x.estimate, 0);
   return (
     <div className="breakdown">
@@ -38,12 +39,12 @@ export function Breakdown({ task }: { task: Task }) {
       {subs.map((x, i) => (
         <label key={i} className={`sub${x.keep ? "" : " off"}`}>
           <input type="checkbox" checked={x.keep} onChange={(e) => setSubs(subs.map((y, j) => (j === i ? { ...y, keep: e.target.checked } : y)))} />
-          <input className="sub-title" value={x.title} onChange={(e) => setSubs(subs.map((y, j) => (j === i ? { ...y, title: e.target.value } : y)))} />
-          <span className="pts">{x.estimate}</span>
-          {x.depends_on.length > 0 && <small className="muted">after #{x.depends_on.map((d) => d + 1).join(", #")}</small>}
+          <input className="sub-title" aria-label={`Subtask ${i + 1}`} value={x.title} onChange={(e) => setSubs(subs.map((y, j) => (j === i ? { ...y, title: e.target.value } : y)))} />
+          <span className="pts">{x.estimate} pt</span>
+          {x.depends_on.length > 0 && <small className="faint mono">after {x.depends_on.map((d) => d + 1).join(", ")}</small>}
         </label>
       ))}
-      <div className="modal-actions"><small className="muted">{pts} pts total</small><span className="spacer" /><button className="ghost" onClick={() => setSubs(null)}>Discard</button><button className="primary" onClick={apply} disabled={busy}>Create subtasks</button></div>
+      <div className="modal-actions"><small className="muted mono">{pts} pt total</small><span className="spacer" /><button className="ghost" onClick={() => setSubs(null)}>Discard</button><button className="primary" onClick={apply} disabled={busy}>Create subtasks</button></div>
     </div>
   );
 }

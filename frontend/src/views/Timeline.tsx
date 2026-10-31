@@ -54,7 +54,7 @@ export function Timeline() {
   return (
     <div className="timeline-wrap">
       <div className="timeline-bar">
-        {cp && <span>Critical path: <b>{cp.chain.join(" → ") || "—"}</b> · remaining {cp.length_days} working days · projected finish <b>{fmtDate(cp.projected_finish, { day: "numeric", month: "short", year: "numeric" })}</b></span>}
+        {cp && <span>Projected finish <b>{fmtDate(cp.projected_finish, { day: "numeric", month: "short", year: "numeric" })}</b>, {cp.length_days} working days out. Critical path <span className="cp-chain">{cp.chain.length ? cp.chain.join(" › ") : "none"}</span></span>}
         <span className="spacer" />
         <label className="toggle-row"><input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> Show completed</label>
         <label className="toggle-row"><input type="checkbox" checked={onlyCritical} onChange={(e) => setOnlyCritical(e.target.checked)} /> Critical only</label>
@@ -73,15 +73,18 @@ export function Timeline() {
               </g>
             );
           })}
-          <line x1={x(today()) + DAY / 2} x2={x(today()) + DAY / 2} y1={20} y2={H} className="today" />
+          <line x1={x(today()) + DAY / 2} x2={x(today()) + DAY / 2} y1={36} y2={H} className="today" />
+          <text x={x(today()) + DAY / 2 + 4} y={46} className="today-label">TODAY</text>
+          <line x1={LEFT - 1} x2={LEFT - 1} y1={0} y2={H} className="g-sep" />
           {rows.map((r, i) => (
-            <g key={r.t.id} className="g-row" onClick={() => s.openTask(r.t.id)}>
+            <g key={r.t.id} className="g-row" onClick={() => s.openTask(r.t.id)} tabIndex={0} role="button" aria-label={`${r.t.key} ${r.t.title}`}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), s.openTask(r.t.id))}>
               <rect x={0} y={40 + i * ROW} width={W} height={ROW} className={i % 2 ? "stripe" : "stripe alt"} />
               <text x={10} y={yMid(i) + 4} className="g-key">{r.t.key}</text>
-              <text x={70} y={yMid(i) + 4} className="g-title">{r.t.title.length > 26 ? r.t.title.slice(0, 25) + "…" : r.t.title}</text>
-              <rect x={x(r.start!) + 2} y={40 + i * ROW + 7} width={Math.max((daysBetween(r.start!, r.end!) + 1) * DAY - 4, 8)} height={ROW - 14} rx={6}
+              <text x={66} y={yMid(i) + 4} className="g-title">{r.t.title.length > 27 ? r.t.title.slice(0, 26) + "…" : r.t.title}</text>
+              <rect x={x(r.start!) + 2} y={40 + i * ROW + 8} width={Math.max((daysBetween(r.start!, r.end!) + 1) * DAY - 4, 8)} height={ROW - 16} rx={3}
                 className={`bar${r.done ? " done" : ""}${r.planned ? "" : " auto"}${r.critical ? " crit" : ""}`}>
-                <title>{`${r.t.key}: ${fmtDate(r.start)} – ${fmtDate(r.end)}${r.slack != null && !r.done ? ` · slack ${r.slack}d` : ""}`}</title>
+                <title>{`${r.t.key}: ${fmtDate(r.start)} to ${fmtDate(r.end)}${r.slack != null && !r.done ? ` · slack ${r.slack}d` : ""}`}</title>
               </rect>
             </g>
           ))}

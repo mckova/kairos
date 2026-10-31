@@ -10,7 +10,7 @@ from ..schemas import LoginIn, RegisterIn, TokenOut, UserOut
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-_COLORS = ["#6366f1", "#ec4899", "#14b8a6", "#f59e0b", "#8b5cf6", "#ef4444", "#0ea5e9", "#22c55e"]
+_COLORS = ["#3d6e6a", "#9a5b43", "#5a7a4a", "#a0702a", "#6e5470", "#4a6378", "#77736a"]
 
 
 @router.post("/register", response_model=TokenOut, status_code=201)

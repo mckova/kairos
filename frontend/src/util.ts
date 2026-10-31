@@ -1,11 +1,11 @@
 import type { Priority } from "./types";
 
-export const PRIORITY: Record<Priority, { label: string; color: string; icon: string; rank: number }> = {
-  urgent: { label: "Urgent", color: "#ef4444", icon: "⏫", rank: 0 },
-  high: { label: "High", color: "#f97316", icon: "🔼", rank: 1 },
-  medium: { label: "Medium", color: "#eab308", icon: "⏺", rank: 2 },
-  low: { label: "Low", color: "#3b82f6", icon: "🔽", rank: 3 },
-  none: { label: "None", color: "#94a3b8", icon: "–", rank: 4 },
+export const PRIORITY: Record<Priority, { label: string; rank: number }> = {
+  urgent: { label: "Urgent", rank: 0 },
+  high: { label: "High", rank: 1 },
+  medium: { label: "Medium", rank: 2 },
+  low: { label: "Low", rank: 3 },
+  none: { label: "No priority", rank: 4 },
 };
 
 export const fmtDate = (s: string | null | undefined, opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" }) =>
@@ -22,7 +22,14 @@ export const ago = (iso: string) => {
   return `${Math.floor(s / 86400)}d ago`;
 };
 
-export const initials = (name: string) => name.split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+export const initials = (name: string) => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const first = [...(words[0] ?? "?")][0] ?? "?";
+  const last = words.length > 1 ? [...words[words.length - 1]][0] : "";
+  return (first + last).toUpperCase();
+};
+
+export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export const daysBetween = (a: string, b: string) =>
   Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);

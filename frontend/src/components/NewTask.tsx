@@ -1,3 +1,5 @@
+import { ListChecks, TextCursorInput, TriangleAlert } from "lucide-react";
+import { PriorityIcon } from "./Icons";
 import { useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
@@ -61,35 +63,35 @@ export function NewTask({ stateId, onClose }: { stateId?: number; onClose: () =>
       <form className="modal" onSubmit={submit}>
         <h3>New task in {s.project.name}</h3>
         <div className="ai-capture">
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="✦ Describe it in your own words - e.g. “Dor should fix the flaky checkout test by Thursday, urgent, ~2 pts”" />
-          <button type="button" className="ai-btn" onClick={fill} disabled={busy || !note.trim()}>{busy ? "Reading…" : "✦ Fill with AI"}</button>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} aria-label="Describe the task in your own words" placeholder="Or describe it in a sentence: Dor should fix the flaky checkout test by Thursday, urgent, about 2 points" />
+          <button type="button" onClick={fill} disabled={busy || !note.trim()} title="Claude reads the sentence and fills in the fields below"><TextCursorInput className="i" aria-hidden />{busy ? "Reading" : "Fill in"}</button>
         </div>
         <div className="title-row">
-          <input autoFocus className="title-input" placeholder="What needs to be done?" value={f.title} onChange={set("title")} />
-          <button type="button" className="ai-btn" onClick={triage} disabled={triBusy || f.title.trim().length < 3} title="Suggest priority, estimate, labels and owner; check for duplicates">{triBusy ? "Triaging…" : "✦ Triage"}</button>
+          <input autoFocus className="title-input" aria-label="Title" placeholder="Task title" value={f.title} onChange={set("title")} />
+          <button type="button" onClick={triage} disabled={triBusy || f.title.trim().length < 3} title="Claude suggests priority, estimate, labels and an owner, and checks for duplicates"><ListChecks className="i" aria-hidden />{triBusy ? "Checking" : "Suggest"}</button>
         </div>
         {tri && (
           <div className="triage">
             {!!tri.duplicates.length && (
-              <div className="dupes">⚠ Possible duplicate{tri.duplicates.length > 1 ? "s" : ""}:
+              <div className="dupes"><TriangleAlert className="i sm" aria-hidden />Looks like existing work:
                 {tri.duplicates.map((d) => <button type="button" key={d.task_id} className="link-btn" onClick={() => { onClose(); s.openTask(d.task_id); }} title={d.reason}><span className="key">{d.key}</span> {d.title}</button>)}
               </div>
             )}
             <div className="tri-sugg">
-              <span><b>{PRIORITY[tri.priority].icon} {PRIORITY[tri.priority].label}</b></span>
-              <span><b>{tri.estimate ?? "?"} pts</b></span>
-              {tri.assignee_id && <span title={tri.assignee_reason}>→ <b>{who(tri.assignee_id)}</b> <small className="muted">{tri.assignee_reason}</small></span>}
-              {tri.label_ids.map((id) => <span key={id} className="chip">{s.project.labels.find((l) => l.id === id)?.name}</span>)}
+              <span><PriorityIcon priority={tri.priority} />{PRIORITY[tri.priority].label}</span>
+              <span className="mono">{tri.estimate ?? "?"} pt</span>
+              {tri.assignee_id && <span title={tri.assignee_reason}>Owner <b>{who(tri.assignee_id)}</b></span>}
+              {tri.label_ids.map((id) => { const l = s.project.labels.find((x) => x.id === id); return <span key={id} className="tag" style={{ "--c": l?.color } as React.CSSProperties}><i />{l?.name}</span>; })}
             </div>
-            <small className="muted">{tri.rationale}</small>
+            <small className="muted">{tri.rationale}{tri.assignee_id ? ` ${tri.assignee_reason}` : ""}</small>
             <div className="tri-actions"><button type="button" className="ghost" onClick={() => setTri(null)}>Dismiss</button><button type="button" className="primary" onClick={applyTriage}>Apply suggestions</button></div>
           </div>
         )}
         <div className="grid2">
-          <label>Status<select value={f.state_id} onChange={set("state_id")}><option value="">Default (To do)</option>{s.project.states.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}</select></label>
+          <label>Status<select value={f.state_id} onChange={set("state_id")}><option value="">To do</option>{s.project.states.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}</select></label>
           <label>Priority<select value={f.priority} onChange={set("priority")}>{Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></label>
           <label>Assignee<select value={f.assignee_id} onChange={set("assignee_id")}><option value="">Unassigned</option>{s.members.map((m) => <option key={m.user.id} value={m.user.id}>{m.user.name}</option>)}</select></label>
-          <label>Estimate<select value={f.estimate} onChange={set("estimate")}><option value="">–</option>{[0.5, 1, 2, 3, 5, 8, 13].map((n) => <option key={n} value={n}>{n} pts</option>)}</select></label>
+          <label>Estimate<select value={f.estimate} onChange={set("estimate")}><option value="">Not estimated</option>{[0.5, 1, 2, 3, 5, 8, 13].map((n) => <option key={n} value={n}>{n} {n === 1 ? "point" : "points"}</option>)}</select></label>
           <label>Sprint<select value={f.sprint_id} onChange={set("sprint_id")}><option value="">No sprint</option>{s.sprints.filter((x) => x.status !== "closed").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
           <label>Due date<input type="date" value={f.due_date} onChange={set("due_date")} /></label>
         </div>

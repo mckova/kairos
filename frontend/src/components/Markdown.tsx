@@ -1,4 +1,4 @@
-/** Tiny, safe markdown renderer (headings, bold, italics, code, lists, paragraphs) - no HTML injection. */
+/** Tiny, safe markdown renderer (headings, bold, italics, code, lists, paragraphs), with no HTML injection. */
 import type { ReactNode } from "react";
 
 function inline(text: string): ReactNode[] {

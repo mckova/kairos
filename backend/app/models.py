@@ -73,7 +73,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     password_hash: Mapped[str] = mapped_column(String(255))
-    avatar_color: Mapped[str] = mapped_column(String(9), default="#6366f1")
+    avatar_color: Mapped[str] = mapped_column(String(9), default="#4a6378")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -107,7 +107,7 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String(120))
     key: Mapped[str] = mapped_column(String(8))
     description: Mapped[str] = mapped_column(Text, default="")
-    color: Mapped[str] = mapped_column(String(9), default="#6366f1")
+    color: Mapped[str] = mapped_column(String(9), default="#4a6378")
     task_counter: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     workspace: Mapped[Workspace] = relationship(back_populates="projects")
@@ -125,7 +125,7 @@ class State(Base):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(60))
     group: Mapped[StateGroup] = mapped_column(Enum(StateGroup))
-    color: Mapped[str] = mapped_column(String(9), default="#94a3b8")
+    color: Mapped[str] = mapped_column(String(9), default="#8a877e")
     position: Mapped[float] = mapped_column(Float, default=0)
     wip_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     project: Mapped[Project] = relationship(back_populates="states")
@@ -136,7 +136,7 @@ class Label(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(60))
-    color: Mapped[str] = mapped_column(String(9), default="#22c55e")
+    color: Mapped[str] = mapped_column(String(9), default="#5a7a4a")
     project: Mapped[Project] = relationship(back_populates="labels")
 
 

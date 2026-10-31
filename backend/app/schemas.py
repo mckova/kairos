@@ -65,7 +65,7 @@ class ProjectIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     key: str = Field(pattern=r"^[A-Z][A-Z0-9]{1,7}$")
     description: str = ""
-    color: str = "#6366f1"
+    color: str = "#1f4d3a"
 
 
 class StateOut(ORM):
@@ -80,13 +80,13 @@ class StateOut(ORM):
 class StateIn(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     group: StateGroup
-    color: str = "#94a3b8"
+    color: str = "#8a877e"
     wip_limit: int | None = None
 
 
 class LabelIn(BaseModel):
     name: str = Field(min_length=1, max_length=60)
-    color: str = "#22c55e"
+    color: str = "#5a7a4a"
 
 
 class LabelOut(ORM):

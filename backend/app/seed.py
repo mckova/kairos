@@ -32,10 +32,10 @@ from .models import (
 from .routers.workspaces import DEFAULT_STATES
 
 PEOPLE = [
-    ("demo@kairos.dev", "May Cohen", "#6366f1", 5),
-    ("dor@kairos.dev", "Dor Levi", "#ec4899", 4),
-    ("noa@kairos.dev", "Noa Katz", "#14b8a6", 4),
-    ("amit@kairos.dev", "Amit Ben-David", "#f59e0b", 3),
+    ("demo@kairos.dev", "May Cohen", "#3d6e6a", 5),
+    ("dor@kairos.dev", "Dor Levi", "#9a5b43", 4),
+    ("noa@kairos.dev", "Noa Katz", "#5a7a4a", 4),
+    ("amit@kairos.dev", "Amit Ben-David", "#a0702a", 3),
 ]
 
 # (title, state, points, priority, assignee idx, label, sprint: 'past'|'active'|None, start offset, due offset)
@@ -67,15 +67,53 @@ LAUNCH_DEPS = [  # blocker -> blocked (1-based task numbers)
 MOBILE = [
     ("User research interviews (8 users)", "Done", 3, "high", 0, "Research", -20),
     ("Information architecture", "Done", 2, "medium", 2, "Design", -15),
+    ("Interview synthesis and opportunity map", "In progress", 3, "high", 0, "Research", None),
     ("Clickable prototype in Figma", "In progress", 5, "high", 2, "Design", None),
     ("React Native project setup", "To do", 2, "medium", 3, "Mobile", None),
     ("Offline sync strategy spike", "Backlog", 3, "high", 1, "Mobile", None),
     ("Push notifications", "Backlog", 3, "low", None, "Mobile", None),
 ]
 
+# Written the way a team would actually write them: context, the decision, and what "done" means.
+DESCRIPTIONS = {
+    "Stripe subscription checkout": (
+        "Monthly and annual plans through Stripe Checkout, with the customer portal for card changes.\n\n"
+        "Done when:\n- A test card can subscribe to either plan and lands back on /billing\n"
+        "- `checkout.session.completed` creates the subscription row exactly once (webhook is idempotent)\n"
+        "- Failed 3-D Secure shows the retry message from the copy doc"),
+    "Usage metering service": (
+        "Count billable events per workspace and report them to Stripe hourly.\n\n"
+        "Batch window is 60 minutes for now. @may to sign off before we lock it, because shorter windows "
+        "raise our Stripe API volume about 4x.\n\n"
+        "Done when:\n- Events are deduplicated by `event_id`\n- A replay of yesterday's log produces the same totals"),
+    "Billing settings page": (
+        "Plan, next invoice date, payment method and invoice history on one page. Waits on checkout so the "
+        "portal link is real.\n\nDesign: Billing v3 frame. Empty state for workspaces on the free tier."),
+    "Invoice PDF generation": (
+        "Render invoices from the Stripe invoice object. Needs our legal entity, VAT number and the line items "
+        "from metering, so it starts after metering lands.\n\nKeep the template in `billing/templates/invoice.html`."),
+    "Email notifications (welcome, receipts)": (
+        "Welcome email on signup and a receipt on every paid invoice. Plain text first, HTML later.\n\n"
+        "Sender: billing@ with a reply-to that reaches support."),
+    "Load test checkout path": (
+        "k6 script against staging: 200 concurrent checkouts for 10 minutes.\n\n"
+        "Pass if p95 stays under 800 ms and no webhook is processed twice."),
+    "Production deploy on Kubernetes": (
+        "Two replicas behind the ingress, Postgres on the managed instance, secrets from the vault.\n\n"
+        "The rollback plan goes in the runbook before the first deploy."),
+    "Public launch announcement": (
+        "Blog post, changelog entry and the email to the waitlist (about 1,900 people). "
+        "Goes out the morning after production is stable for 48 hours."),
+    "Team invitations and roles": (
+        "Invite by email, accept with a magic link. Roles: owner, admin, member. "
+        "Billing pages are owner-only."),
+    "Dark mode": "Follow the OS setting by default, with a toggle in the account menu. Charts need their own palette.",
+    "Admin analytics dashboard": "Not scoped yet. Talk to sales about which numbers they ask for every week.",
+}
+
 LABEL_COLORS = {
-    "Product": "#8b5cf6", "Design": "#ec4899", "Backend": "#0ea5e9", "Frontend": "#22c55e",
-    "DevOps": "#f59e0b", "Research": "#14b8a6", "Mobile": "#6366f1",
+    "Product": "#6e5470", "Design": "#9a5b43", "Backend": "#4a6378", "Frontend": "#5a7a4a",
+    "DevOps": "#a0702a", "Research": "#3d6e6a", "Mobile": "#77736a",
 }
 
 
@@ -118,14 +156,14 @@ def run(today: date | None = None) -> None:
     db.flush()
 
     # ---- Project 1: SaaS launch ------------------------------------------------
-    p = _project(db, ws, "Pulse SaaS Launch", "PLS", "#6366f1",
+    p = _project(db, ws, "Pulse SaaS Launch", "PLS", "#1f4d3a",
                  "Ship the paid tier of Pulse: billing, onboarding and production infra.",
                  ["Product", "Design", "Backend", "Frontend", "DevOps"])
     states = {s.name: s for s in p.states}
     labels = {l.name: l for l in p.labels}
-    past = Sprint(project=p, name="Sprint 1 - Foundations", goal="Data model, auth and CI in place",
+    past = Sprint(project=p, name="Sprint 1: Foundations", goal="Data model, auth and CI in place",
                   start_date=today - timedelta(days=28), end_date=today - timedelta(days=15), status=SprintStatus.closed)
-    active = Sprint(project=p, name="Sprint 2 - Get paid", goal="A customer can subscribe and be billed",
+    active = Sprint(project=p, name="Sprint 2: Get paid", goal="A customer can subscribe and be billed",
                     start_date=today - timedelta(days=13), end_date=today + timedelta(days=12), status=SprintStatus.active)
     db.add_all([past, active])
     db.flush()
@@ -140,7 +178,7 @@ def run(today: date | None = None) -> None:
             start_date=today + timedelta(days=s_off) if s_off is not None else None,
             due_date=today + timedelta(days=d_off) if d_off is not None else None,
             rank=i * 65536.0, created_at=_dt(created, 9),
-            description=f"Acceptance criteria for **{title.lower()}**.\n\n- [ ] Implemented\n- [ ] Tested\n- [ ] Documented",
+            description=DESCRIPTIONS.get(title, ""),
         )
         t.labels = [labels[label]]
         if states[st].group == StateGroup.completed:
@@ -182,7 +220,7 @@ def run(today: date | None = None) -> None:
         (7, 1, "Stripe test keys are in the vault. Webhook secret still missing for staging."),
         (7, 0, "Added it. Please make sure we handle `invoice.payment_failed` too."),
         (8, 3, "Metering writes are ~400/s at peak; batching every 5s keeps Postgres happy."),
-        (13, 3, "Blocked until checkout is merged - no point load testing a moving target."),
+        (13, 3, "Blocked until checkout is merged. No point load testing a moving target."),
         (8, 2, "@may can you sign off on the batching window before Friday?"),
     ]
     for k, (idx, who, body) in enumerate(conv):
@@ -194,7 +232,7 @@ def run(today: date | None = None) -> None:
     db.flush()
     inbox = [
         (2, 8, NotificationKind.mentioned, 'Noa Katz mentioned you on {key}: "@may can you sign off on the batching window before Friday?"', 2, False),
-        (3, 13, NotificationKind.commented, 'Amit Ben-David commented on {key}: "Blocked until checkout is merged - no point load testing a moving target."', 8, False),
+        (3, 13, NotificationKind.commented, 'Amit Ben-David commented on {key}: "Blocked until checkout is merged. No point load testing a moving target."', 8, False),
         (1, 7, NotificationKind.status, "Dor Levi moved {key} to In review", 20, False),
         (1, 9, NotificationKind.assigned, "Dor Levi assigned you {key}: {title}", 28, True),
     ]
@@ -206,7 +244,7 @@ def run(today: date | None = None) -> None:
                             read_at=utcnow() if read else None))
 
     # ---- Project 2: Mobile app ------------------------------------------------
-    m = _project(db, ws, "Mobile App Discovery", "MOB", "#14b8a6",
+    m = _project(db, ws, "Mobile App Discovery", "MOB", "#a0702a",
                  "Research and prototype the companion mobile app.", ["Research", "Design", "Mobile"])
     mstates = {s.name: s for s in m.states}
     mlabels = {l.name: l for l in m.labels}

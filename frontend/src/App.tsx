@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { CalendarRange, ChartNoAxesColumn, GanttChart, KanbanSquare, LogOut, Moon, MessageSquareText, Plus, Rows3, Search, Sun, SunMoon } from "lucide-react";
 import { api, auth } from "./api";
 import { Avatar } from "./components/Avatar";
 import { CommandPalette } from "./components/CommandPalette";
 import { Copilot } from "./components/Copilot";
 import { Filters } from "./components/Filters";
+import { Mark } from "./components/Icons";
 import { NewTask } from "./components/NewTask";
 import { TaskDrawer } from "./components/TaskDrawer";
 import { useUserSocket } from "./realtime";
@@ -17,12 +19,12 @@ import { SprintView } from "./views/SprintView";
 import { Timeline } from "./views/Timeline";
 
 type View = "board" | "list" | "timeline" | "sprint" | "insights";
-const VIEWS: { id: View; label: string; icon: string }[] = [
-  { id: "board", label: "Board", icon: "▦" },
-  { id: "list", label: "List", icon: "☰" },
-  { id: "timeline", label: "Timeline", icon: "▤" },
-  { id: "sprint", label: "Sprints", icon: "⟳" },
-  { id: "insights", label: "Insights", icon: "✦" },
+const VIEWS: { id: View; label: string; Icon: typeof Rows3 }[] = [
+  { id: "board", label: "Board", Icon: KanbanSquare },
+  { id: "list", label: "List", Icon: Rows3 },
+  { id: "timeline", label: "Timeline", Icon: GanttChart },
+  { id: "sprint", label: "Sprints", Icon: CalendarRange },
+  { id: "insights", label: "Insights", Icon: ChartNoAxesColumn },
 ];
 
 interface Route { me: boolean; pid: number | null; view: View; task: number | null }
@@ -57,24 +59,23 @@ function Login({ onAuth }: { onAuth: (u: User) => void }) {
   return (
     <div className="login">
       <div className="login-art">
-        <div className="brand big"><span className="logo">K</span> Kairos</div>
-        <h1>Plan with confidence,<br />not guesswork.</h1>
-        <ul>
-          <li>⚡ Real-time Kanban, list and Gantt timeline</li>
-          <li>🧭 Critical-path scheduling from task dependencies</li>
-          <li>🎲 Monte Carlo delivery forecasts from your real throughput</li>
-          <li>🚨 Risk radar: overdue, blocked, overloaded, WIP</li>
-          <li>✦ AI copilot on Claude Opus 5.5: plan, rebalance and report in plain language</li>
-        </ul>
+        <div className="brand"><Mark /> Kairos</div>
+        <div className="login-copy">
+          <h1>Know when the work will land.</h1>
+          <p>Plan sprints, see the critical path, and get a delivery date your team can trust.</p>
+          <ForecastFigure />
+        </div>
+        <p className="login-foot">Delivery dates are simulated from the work your team actually finished.</p>
       </div>
       <form className="login-card" onSubmit={(e) => { e.preventDefault(); go(f); }}>
-        <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
-        {mode === "register" && <input placeholder="Full name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />}
-        <input type="email" placeholder="Email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
-        <input type="password" placeholder="Password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
-        {err && <div className="error">{err}</div>}
-        <button className="primary">{mode === "login" ? "Sign in" : "Sign up"}</button>
-        <button type="button" className="demo" onClick={() => go({ email: "demo@kairos.dev", password: "demo1234", name: "" }, "login")}>Try the demo workspace →</button>
+        <h2>{mode === "login" ? "Sign in" : "Create an account"}</h2>
+        {mode === "register" && <input placeholder="Full name" aria-label="Full name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />}
+        <input type="email" placeholder="Work email" aria-label="Email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
+        <input type="password" placeholder="Password" aria-label="Password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+        {err && <div className="error" role="alert">{err}</div>}
+        <button className="primary">{mode === "login" ? "Sign in" : "Create account"}</button>
+        <div className="or">or</div>
+        <button type="button" className="demo" onClick={() => go({ email: "demo@kairos.dev", password: "demo1234", name: "" }, "login")}>Open the demo workspace</button>
         <p className="muted">{mode === "login" ? "New here? " : "Have an account? "}
           <a href="#" onClick={(e) => { e.preventDefault(); setMode(mode === "login" ? "register" : "login"); }}>{mode === "login" ? "Create an account" : "Sign in"}</a></p>
       </form>
@@ -110,7 +111,7 @@ function Shell({ me }: { me: User }) {
   useEffect(() => { loadWs(); }, []);
   const loadInbox = useCallback(() => api<{ unread: number; items: Notification[] }>("/api/me/notifications").then(setInbox).catch(() => {}), []);
   useEffect(() => { loadInbox(); }, []);
-  useUserSocket((e) => { if (e.event === "notification.created") { loadInbox(); toast(`🔔 ${e.data.text}`); } });
+  useUserSocket((e) => { if (e.event === "notification.created") { loadInbox(); toast(e.data.text); } });
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); setPalette((v) => !v); } };
     window.addEventListener("keydown", k);
@@ -131,31 +132,37 @@ function Shell({ me }: { me: User }) {
     if (!pid && projects[0]) go(projects[0].id);
     setAsk({ text, n: Date.now() });
   };
+  const [theme, setTheme] = useState(document.documentElement.dataset.theme ?? "light");
+  const flipTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next; localStorage.setItem("kairos.theme", next); setTheme(next);
+  };
   const logout = () => { auth.clear(); location.hash = ""; location.reload(); };
   const pid = !route.me && route.pid && projects.some((p) => p.id === route.pid) ? route.pid : null;
 
   return (
     <div className="app">
       <nav className="sidebar">
-        <div className="brand"><span className="logo">K</span> Kairos</div>
+        <div className="brand"><Mark /> Kairos</div>
         <select className="ws-pick" value={ws?.id ?? ""} onChange={(e) => setWs(workspaces.find((w) => w.id === +e.target.value) ?? null)}>
           {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
         </select>
-        <button className="search-btn" onClick={() => setPalette(true)}><span>⌕ Search or ask AI…</span><kbd>Ctrl K</kbd></button>
-        <a className={`side-item${route.me ? " on" : ""}`} onClick={() => { location.hash = "#/me"; }}>
-          <span className="dot-ico">☀</span>My day{inbox.unread > 0 && <span className="badge">{inbox.unread}</span>}
+        <button className="search-btn" onClick={() => setPalette(true)}><span><Search className="i sm" aria-hidden />Find or ask</span><kbd>Ctrl K</kbd></button>
+        <a href="#/me" className={`side-item${route.me ? " on" : ""}`} aria-current={route.me ? "page" : undefined}>
+          <Sun className="i" aria-hidden />My day
+          {inbox.unread > 0 && <span className="count-badge" aria-label={`${inbox.unread} unread`}>{inbox.unread}</span>}
         </a>
-        <div className="side-title">Projects <button className="ghost icon" title="New project" aria-label="New project" onClick={() => setModal(ws ? "project" : "workspace")}>＋</button></div>
+        <div className="side-title">Projects <button className="ghost icon" title="New project" aria-label="New project" onClick={() => setModal(ws ? "project" : "workspace")}><Plus className="i sm" /></button></div>
         {projects.map((p) => (
-          <a key={p.id} className={`side-item${p.id === pid ? " on" : ""}`} onClick={() => go(p.id)}>
-            <span className="dot" style={{ background: p.color }} />{p.name}<small>{p.key}</small>
+          <a key={p.id} href={`#/p/${p.id}/${route.view}`} className={`side-item${p.id === pid ? " on" : ""}`} aria-current={p.id === pid ? "page" : undefined}>
+            <span className="proj-sq" style={{ background: p.color }} /><span className="label">{p.name}</span><small>{p.key}</small>
           </a>
         ))}
         {!workspaces.length && <button className="primary" onClick={() => setModal("workspace")}>Create a workspace</button>}
         <div className="side-title">Team</div>
-        <div className="team">{members.map((m) => <Avatar key={m.user.id} user={m.user} size={26} />)}</div>
+        <div className="team">{members.map((m) => <Avatar key={m.user.id} user={m.user} size={24} />)}</div>
         <div className="spacer" />
-        <div className="me"><Avatar user={me} size={28} /><span>{me.name}<small>{me.email}</small></span><button className="ghost" onClick={logout} title="Sign out" aria-label="Sign out">⎋</button></div>
+        <div className="me"><Avatar user={me} size={26} /><span>{me.name}<small>{me.email}</small></span><button className="ghost icon theme-btn" onClick={flipTheme} title={theme === "dark" ? "Light theme" : "Dark theme"} aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>{theme === "dark" ? <SunMoon className="i sm" /> : <Moon className="i sm" />}</button><button className="ghost icon" onClick={logout} title="Sign out" aria-label="Sign out"><LogOut className="i sm" /></button></div>
       </nav>
       <main className="main">
         {route.me ? (
@@ -203,15 +210,17 @@ function ProjectPage({ view, setView, task, ask, newSignal }: {
     <>
       <header className="page-head">
         <div>
-          <h1><span className="dot big" style={{ background: s.project.color }} />{s.project.name}</h1>
-          <p className="muted">{s.project.description}</p>
+          <h1>{s.project.name}<span className="key">{s.project.key}</span></h1>
+          <p>{s.project.description}</p>
         </div>
         <span className="spacer" />
-        <button className="ai-btn big" onClick={() => setCopilot(!copilot)} title="Shortcut: A">✦ Copilot</button>
-        <button className="primary" onClick={() => setNewIn(undefined)} title="Shortcut: C">＋ New task</button>
+        <div className="actions-row">
+          <button onClick={() => setCopilot(!copilot)} title="Ask about this project or tell it what to change (A)" aria-expanded={copilot}><MessageSquareText className="i" aria-hidden />Ask</button>
+          <button className="primary" onClick={() => setNewIn(undefined)} title="New task (C)"><Plus className="i" aria-hidden />New task</button>
+        </div>
       </header>
       <div className="tabs">
-        {VIEWS.map((v) => <button key={v.id} className={view === v.id ? "on" : ""} onClick={() => setView(v.id)}><span>{v.icon}</span>{v.label}</button>)}
+        {VIEWS.map((v) => <button key={v.id} className={view === v.id ? "on" : ""} aria-current={view === v.id ? "page" : undefined} onClick={() => setView(v.id)}><v.Icon className="i sm" aria-hidden />{v.label}</button>)}
       </div>
       {["board", "list", "timeline"].includes(view) && <Filters />}
       <div className="view">
@@ -228,8 +237,32 @@ function ProjectPage({ view, setView, task, ask, newSignal }: {
   );
 }
 
+/** A small, deliberate palette for project markers, tuned to sit on the bone canvas in both themes. */
+const SWATCHES = ["#1f4d3a", "#4a6378", "#a0702a", "#9a5b43", "#6e5470", "#3d6e6a", "#77736a"];
+
+/** The login page's one figure: what a delivery forecast looks like, drawn the way the product draws it. */
+function ForecastFigure() {
+  const runs = [1, 3, 8, 16, 29, 44, 58, 66, 63, 54, 43, 31, 22, 14, 9, 5, 3, 1];
+  const W = 432, H = 112, bw = W / runs.length, max = Math.max(...runs);
+  const p50 = 8, p85 = 12;
+  const mark = (i: number, label: string) => (
+    <g className="ff-mark"><line x1={i * bw + bw / 2} x2={i * bw + bw / 2} y1={8} y2={H} /><text x={i * bw + bw / 2 + 5} y={16}>{label}</text></g>
+  );
+  return (
+    <figure className="forecast-figure" aria-label="Example forecast: 50% likely by 25 November, 85% likely by 29 November">
+      <figcaption><span>Pulse SaaS Launch</span><span>5,000 simulated finishes</span></figcaption>
+      <svg viewBox={`0 0 ${W} ${H + 18}`} role="presentation">
+        {runs.map((r, i) => <rect key={i} x={i * bw + 1.5} y={H - (r / max) * (H - 28)} width={bw - 3} height={(r / max) * (H - 28)} className={i <= p50 ? "in" : i <= p85 ? "mid" : ""} />)}
+        <line x1={0} x2={W} y1={H} y2={H} className="ff-base" />
+        {mark(p50, "50%  25 Nov")}{mark(p85, "85%  29 Nov")}
+        {([[0, "17 Nov"], [4, "21"], [8, "25"], [12, "29"], [16, "3 Dec"]] as const).map(([i, t]) => <text key={i} x={i * bw + bw / 2} y={H + 14} textAnchor="middle" className="ff-axis">{t}</text>)}
+      </svg>
+    </figure>
+  );
+}
+
 function NewProject({ ws, onClose, onCreated }: { ws: Workspace; onClose: () => void; onCreated: (p: Project) => void }) {
-  const [f, setF] = useState({ name: "", key: "", description: "", color: "#6366f1" });
+  const [f, setF] = useState({ name: "", key: "", description: "", color: SWATCHES[0] });
   const [err, setErr] = useState("");
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,7 +277,7 @@ function NewProject({ ws, onClose, onCreated }: { ws: Workspace; onClose: () => 
           onBlur={() => !f.key && setF({ ...f, key: f.name.replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() })} />
         <div className="grid2">
           <label>Key (e.g. WEB)<input value={f.key} maxLength={8} onChange={(e) => setF({ ...f, key: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") })} /></label>
-          <label>Color<input type="color" value={f.color} onChange={(e) => setF({ ...f, color: e.target.value })} /></label>
+          <fieldset className="swatches"><legend>Colour</legend>{SWATCHES.map((c) => <button type="button" key={c} className="swatch" style={{ background: c }} aria-label={`Colour ${c}`} aria-pressed={f.color === c} onClick={() => setF({ ...f, color: c })} />)}</fieldset>
         </div>
         <textarea placeholder="What is this project about?" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
         {err && <div className="error">{err}</div>}

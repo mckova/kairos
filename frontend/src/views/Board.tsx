@@ -1,4 +1,6 @@
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { StateIcon } from "../components/Icons";
 import { api } from "../api";
 import { TaskCard } from "../components/TaskCard";
 import { useStore } from "../store";
@@ -16,6 +18,7 @@ export function Board({ onNew }: { onNew: (stateId: number) => void }) {
     api<{ chain_ids: number[] }>(`/api/projects/${s.project.id}/analytics/critical-path`).then((r) => setCritical(new Set(r.chain_ids))).catch(() => {});
   }, [s.project.id, s.version]);
 
+  const cancelled = s.project.states.find((st) => st.group === "cancelled");
   const columns = s.project.states.filter((st) => showCancelled || st.group !== "cancelled");
   const byState = (id: number) => s.visible.filter((t) => t.state_id === id).sort((a, b) => a.rank - b.rank);
 
@@ -57,28 +60,33 @@ export function Board({ onNew }: { onNew: (stateId: number) => void }) {
             <section key={st.id} className={`column${drop?.state === st.id ? " over" : ""}`}
               onDragOver={(e) => onDragOver(e, st.id)} onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDrop(null)} onDrop={() => onDrop(st.id)}>
               <header>
-                <span className="dot" style={{ background: st.color }} />
+                <StateIcon group={st.group} />
                 <b>{st.name}</b>
                 <span className={`count${over ? " over" : ""}`} title={st.wip_limit ? `WIP limit ${st.wip_limit}` : ""}>{items.length}{st.wip_limit ? `/${st.wip_limit}` : ""}</span>
                 <span className="spacer" />
-                {pts > 0 && <small className="muted">{pts} pts</small>}
-                <button className="ghost icon" title="Add task" onClick={() => onNew(st.id)}>＋</button>
+                {pts > 0 && <span className="col-pts" title="Story points in this column">{pts} pt</span>}
+                <button className="ghost icon col-add" title={`Add a task to ${st.name}`} aria-label={`Add a task to ${st.name}`} onClick={() => onNew(st.id)}><Plus className="i sm" /></button>
               </header>
               <div className="cards">
                 {items.map((t) => (
                   <div key={t.id} className={drag === t.id ? "dragging" : ""}>
                     {drop?.state === st.id && drag !== t.id && drop.index === others.indexOf(t) && <div className="drop-line" />}
-                    <TaskCard task={t} critical={critical.has(t.id)} onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(t.id)); setDrag(t.id); }} />
+                    <TaskCard task={t} critical={critical.has(t.id) && !["completed", "cancelled"].includes(st.group)} onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(t.id)); setDrag(t.id); }} />
                   </div>
                 ))}
                 {drop?.state === st.id && drop.index >= others.length && <div className="drop-line" />}
-                {!items.length && <div className="empty">Drop tasks here</div>}
+                {!items.length && <div className="empty">Nothing in {st.name.toLowerCase()}</div>}
               </div>
             </section>
           );
         })}
+        {!showCancelled && cancelled && (
+          <button className="ghost col-collapsed" onClick={() => setShowCancelled(true)} title="Show the cancelled column">
+            Cancelled <span className="col-pts">{byState(cancelled.id).length}</span>
+          </button>
+        )}
+        {showCancelled && <button className="ghost col-collapsed" onClick={() => setShowCancelled(false)} title="Hide the cancelled column">Hide cancelled</button>}
       </div>
-      <label className="toggle-row"><input type="checkbox" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} /> Show cancelled column</label>
     </div>
   );
 }

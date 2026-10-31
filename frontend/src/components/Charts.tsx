@@ -2,7 +2,7 @@
 import { fmtDate } from "../util";
 
 export function LineChart({ series, height = 220 }: { series: { date: string; ideal: number; remaining?: number }[]; height?: number }) {
-  const W = 640, H = height, P = { l: 36, r: 12, t: 12, b: 26 };
+  const W = 640, H = height, P = { l: 36, r: 24, t: 12, b: 26 };
   if (!series.length) return null;
   const max = Math.max(1, ...series.map((p) => Math.max(p.ideal, p.remaining ?? 0)));
   const x = (i: number) => P.l + (i / Math.max(series.length - 1, 1)) * (W - P.l - P.r);
@@ -25,7 +25,7 @@ export function LineChart({ series, height = 220 }: { series: { date: string; id
   );
 }
 
-export function Bars({ data, height = 160, color = "var(--accent)" }: { data: { label: string; value: number }[]; height?: number; color?: string }) {
+export function Bars({ data, height = 160 }: { data: { label: string; value: number }[]; height?: number }) {
   const W = 640, H = height, P = { l: 28, r: 8, t: 14, b: 22 };
   const max = Math.max(1, ...data.map((d) => d.value));
   const bw = (W - P.l - P.r) / data.length;
@@ -36,7 +36,7 @@ export function Bars({ data, height = 160, color = "var(--accent)" }: { data: { 
         const h = (d.value / max) * (H - P.t - P.b);
         return (
           <g key={i}>
-            <rect x={P.l + i * bw + bw * 0.18} y={H - P.b - h} width={bw * 0.64} height={h} rx={4} fill={color}><title>{`${d.label}: ${d.value}`}</title></rect>
+            <rect x={P.l + i * bw + bw * 0.22} y={H - P.b - Math.max(h, 1)} width={bw * 0.56} height={Math.max(h, 1)} className={`bar-rect${d.value ? "" : " zero"}`}><title>{`${d.label}: ${d.value}`}</title></rect>
             <text x={P.l + i * bw + bw / 2} y={H - P.b - h - 4} textAnchor="middle" className="axis">{d.value || ""}</text>
             <text x={P.l + i * bw + bw / 2} y={H - 6} textAnchor="middle" className="axis">{d.label}</text>
           </g>
@@ -53,7 +53,7 @@ export function Gauge({ value, label }: { value: number | null; label: string })
     <svg viewBox="0 0 140 140" className="gauge" role="img" aria-label={label}>
       <circle cx="70" cy="70" r={r} className="gauge-track" />
       <circle cx="70" cy="70" r={r} stroke={color} className="gauge-val" strokeDasharray={`${c * v} ${c}`} transform="rotate(-90 70 70)" />
-      <text x="70" y="70" textAnchor="middle" className="gauge-num" fill={color}>{value == null ? "–" : `${Math.round(v * 100)}%`}</text>
+      <text x="70" y="70" textAnchor="middle" className="gauge-num" fill={color}>{value == null ? "n/a" : `${Math.round(v * 100)}%`}</text>
       <text x="70" y="92" textAnchor="middle" className="axis">{label}</text>
     </svg>
   );

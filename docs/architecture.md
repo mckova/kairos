@@ -24,12 +24,12 @@
                                                               (role checks, validation, activity log, WebSocket)
 ```
 
-* `ai/client.py` - SDK wrapper: model `claude-opus-5-5` (env `KAIROS_AI_MODEL`), server-side refusal
+* `ai/client.py`: SDK wrapper: model `claude-opus-5-5` (env `KAIROS_AI_MODEL`), server-side refusal
   fallbacks, refusal -> HTTP 503, injectable client for tests.
-* `ai/tools.py` - 8 tools with JSON schemas. Tasks are addressed by human keys (`PLS-12`), statuses by name;
+* `ai/tools.py`: 8 tools with JSON schemas. Tasks are addressed by human keys (`PLS-12`), statuses by name;
   errors (unknown key, 403 for viewers, circular dependency) are returned to the model as `is_error`
   tool results so it can correct itself.
-* `ai/copilot.py` - the agent loop (max 12 turns; assistant content, including thinking blocks, is
+* `ai/copilot.py`: the agent loop (max 12 turns; assistant content, including thinking blocks, is
   appended unchanged), plus three single-call features using structured JSON output: task breakdown,
   natural-language task capture, and the sprint status report.
 * `ai/copilot.py` also holds the two personal features: `plan_day` (ordered focus list across all projects,

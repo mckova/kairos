@@ -1,3 +1,4 @@
+import { ArrowDownUp, CornerDownLeft, FileText, Folder, LayoutList, MessageSquareText, Plus, Search, Sun } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, qs } from "../api";
 import type { Project, SearchHit } from "../types";
@@ -13,7 +14,7 @@ export interface PaletteActions {
   onClose: () => void;
 }
 
-interface Item { id: string; icon: string; label: string; hint?: string; run: () => void; ai?: boolean }
+interface Item { id: string; icon: React.ReactNode; label: React.ReactNode; text: string; hint?: string; run: () => void; ai?: boolean }
 
 const VIEWS = ["board", "list", "timeline", "sprint", "insights"];
 
@@ -36,16 +37,17 @@ export function CommandPalette(a: PaletteActions) {
     const out: Item[] = [];
     // A sentence reads as an instruction for the AI; put it first.
     const looksLikeAsk = term.split(/\s+/).length >= 3 || term.endsWith("?");
-    const ask: Item | null = term && a.projects.length ? { id: "ai", icon: "✦", label: `Ask Copilot: “${q.trim()}”`, hint: `AI works in ${(a.projects.find((p) => p.id === a.currentProject) ?? a.projects[0]).name}`, ai: true, run: close(() => a.askAI(q.trim())) } : null;
+    const where = (a.projects.find((p) => p.id === a.currentProject) ?? a.projects[0])?.name;
+    const ask: Item | null = term && a.projects.length ? { id: "ai", icon: <MessageSquareText className="i" />, text: q.trim(), label: <>Ask {where}: {q.trim()}</>, hint: "answers from live data", ai: true, run: close(() => a.askAI(q.trim())) } : null;
     if (ask && looksLikeAsk) out.push(ask);
-    out.push(...hits.map((h) => ({ id: `t${h.id}`, icon: "◇", label: `${h.key}  ${h.title}`, hint: `${h.project_name} · ${h.state}`, run: close(() => a.openTask(h.project_id, h.id)) })));
+    out.push(...hits.map((h) => ({ id: `t${h.id}`, icon: <FileText className="i" />, text: h.title, label: <><span className="key">{h.key}</span>{h.title}</>, hint: `${h.project_name}, ${h.state}`, run: close(() => a.openTask(h.project_id, h.id)) })));
     const nav: Item[] = [
-      { id: "myday", icon: "☀", label: "My day: plan, my tasks, inbox", run: close(a.goMyDay) },
-      ...(a.currentProject ? [{ id: "new", icon: "＋", label: "New task", hint: "C", run: close(a.newTask) }] : []),
-      ...a.projects.map((p) => ({ id: `p${p.id}`, icon: "●", label: `Go to ${p.name}`, hint: p.key, run: close(() => a.goProject(p.id)) })),
-      ...(a.currentProject ? VIEWS.map((v) => ({ id: `v${v}`, icon: "▸", label: `Open ${v} view`, run: close(() => a.goProject(a.currentProject!, v)) })) : []),
+      { id: "myday", icon: <Sun className="i" />, text: "My day", label: "My day", hint: "plan, your tasks, inbox", run: close(a.goMyDay) },
+      ...(a.currentProject ? [{ id: "new", icon: <Plus className="i" />, text: "New task", label: "New task", hint: "C", run: close(a.newTask) }] : []),
+      ...a.projects.map((p) => ({ id: `p${p.id}`, icon: <Folder className="i" />, text: p.name, label: p.name, hint: p.key, run: close(() => a.goProject(p.id)) })),
+      ...(a.currentProject ? VIEWS.map((v) => ({ id: `v${v}`, icon: <LayoutList className="i" />, text: `${v} view`, label: `${v[0].toUpperCase()}${v.slice(1)} view`, run: close(() => a.goProject(a.currentProject!, v)) })) : []),
     ];
-    out.push(...nav.filter((i) => !term || i.label.toLowerCase().includes(term)));
+    out.push(...nav.filter((i) => !term || i.text.toLowerCase().includes(term)));
     if (ask && !looksLikeAsk) out.push(ask);
     return out;
   }, [q, hits, a]);
@@ -60,18 +62,19 @@ export function CommandPalette(a: PaletteActions) {
   return (
     <div className="modal-wrap palette-wrap" onMouseDown={(e) => e.target === e.currentTarget && a.onClose()}>
       <div className="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+        <div className="palette-input"><Search className="i" aria-hidden />
         <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={key} role="combobox" aria-expanded="true"
           aria-controls="palette-list" aria-activedescendant={items[sel] ? `pal-${items[sel].id}` : undefined} aria-label="Search or ask"
-          placeholder="Search tasks, jump to a project, or ask the AI anything…" />
+          placeholder="Find a task or project, or type a question" /></div>
         <ul id="palette-list" role="listbox">
           {items.map((it, i) => (
-            <li key={it.id} id={`pal-${it.id}`} role="option" aria-selected={i === sel} className={`${i === sel ? "on" : ""}${it.ai ? " ai" : ""}`} onMouseEnter={() => setSel(i)} onClick={it.run}>
+            <li key={it.id} id={`pal-${it.id}`} role="option" aria-selected={i === sel} className={`${i === sel ? "on" : ""}${it.ai ? " ask" : ""}`} onMouseEnter={() => setSel(i)} onClick={it.run}>
               <span className="ico" aria-hidden="true">{it.icon}</span><span className="grow">{it.label}</span>{it.hint && <small className="muted">{it.hint}</small>}
             </li>
           ))}
-          {!items.length && <li className="muted">No matches</li>}
+          {!items.length && <li className="faint">No tasks or projects match.</li>}
         </ul>
-        <footer className="muted"><span>↑↓ navigate</span><span>↵ open</span><span>esc close</span><span className="spacer" /><span>✦ type a sentence to ask Claude</span></footer>
+        <footer><span><ArrowDownUp className="i sm" aria-hidden />move</span><span><CornerDownLeft className="i sm" aria-hidden />open</span><span><kbd>Esc</kbd>close</span><span className="spacer" /><span>A full question goes to the project assistant</span></footer>
       </div>
     </div>
   );

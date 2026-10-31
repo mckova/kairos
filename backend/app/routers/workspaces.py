@@ -9,12 +9,12 @@ from ..schemas import InviteIn, MemberOut, ProjectIn, ProjectOut, WorkspaceIn, W
 router = APIRouter(prefix="/api/workspaces", tags=["workspaces"])
 
 DEFAULT_STATES = [
-    ("Backlog", StateGroup.backlog, "#94a3b8", None),
-    ("To do", StateGroup.unstarted, "#64748b", None),
-    ("In progress", StateGroup.started, "#f59e0b", 4),
-    ("In review", StateGroup.started, "#8b5cf6", 3),
-    ("Done", StateGroup.completed, "#22c55e", None),
-    ("Cancelled", StateGroup.cancelled, "#ef4444", None),
+    ("Backlog", StateGroup.backlog, "#8a877e", None),
+    ("To do", StateGroup.unstarted, "#77736a", None),
+    ("In progress", StateGroup.started, "#a0702a", 4),
+    ("In review", StateGroup.started, "#4a6378", 3),
+    ("Done", StateGroup.completed, "#2f6b4f", None),
+    ("Cancelled", StateGroup.cancelled, "#a5361f", None),
 ]
 
 
