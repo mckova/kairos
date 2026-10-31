@@ -97,7 +97,7 @@ export function SprintView() {
                 {fc.p50 && <>Even odds by <b>{fmtDate(fc.p50)}</b>, 85% likely by <b>{fmtDate(fc.p85)}</b>, 95% by {fmtDate(fc.p95)}.</>}
               </p>
             )}
-            <div className="legend"><i className="lg actual" />Points left <i className="lg plan" />Plan <i className="lg proj" />Forecast, 50 to 85% likely</div>
+            <div className="legend"><i className="lg actual" />Days so far <i className="lg proj" />Projected to the likely finish <i className="lg today" />Today</div>
             {bd && <BurndownChart series={bd.series} forecast={fc} />}
             {fc && <p className="fc-basis">{fc.remaining_points} points left. {fc.basis}</p>}
           </section>

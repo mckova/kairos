@@ -73,7 +73,7 @@ export function Insights() {
           <h3>Completed per week <small>story points</small></h3>
           <WeekBars data={sum.weekly_throughput.slice(Math.max(0, Math.min(sum.weekly_throughput.findIndex((w) => w.points > 0), sum.weekly_throughput.length - 4))).map((w) => ({ label: fmtDate(w.week_ending), value: w.points }))} />
           <h3 style={{ marginTop: 28 }}>Open work by priority</h3>
-          <Composition label="Open work by priority" parts={Object.entries(PRIORITY).map(([k, v], i) => ({ key: k, label: v.label, value: sum.open_by_priority[k] ?? 0, color: PRIO_SHADES[i] }))} />
+          <Composition centre="open tasks" label="Open work by priority" parts={Object.entries(PRIORITY).map(([k, v], i) => ({ key: k, label: v.label, value: sum.open_by_priority[k] ?? 0, color: PRIO_SHADES[i] }))} />
         </section>
       </div>
 
@@ -91,7 +91,7 @@ export function Insights() {
         </section>
         <section>
           <h3>Tasks by status</h3>
-          <Composition label="Tasks by status" parts={s.project.states.map((st) => ({ key: String(st.id), label: st.name, value: sum.by_state[String(st.id)] ?? 0, color: stateShade(st.group, st.name) }))} />
+          <Composition centre="tasks" label="Tasks by status" parts={s.project.states.map((st) => ({ key: String(st.id), label: st.name, value: sum.by_state[String(st.id)] ?? 0, color: stateShade(st.group, st.name) }))} />
         </section>
       </div>
     </div>

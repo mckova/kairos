@@ -1,4 +1,4 @@
-import { ListChecks, TextCursorInput, TriangleAlert } from "lucide-react";
+import { ListChecks, Sparkles, SquareCheck, TextCursorInput, TriangleAlert, X } from "lucide-react";
 import { PriorityIcon } from "./Icons";
 import { useState } from "react";
 import { api } from "../api";
@@ -11,6 +11,7 @@ export function NewTask({ stateId, onClose }: { stateId?: number; onClose: () =>
   const active = s.sprints.find((x) => x.status === "active");
   const [f, setF] = useState({ title: "", state_id: stateId ?? "", priority: "none", assignee_id: "", estimate: "", sprint_id: active ? String(active.id) : "", due_date: "" });
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"task" | "sentence">("task");
   const [note, setNote] = useState("");
   const [labelIds, setLabelIds] = useState<number[]>([]);
   const [desc, setDesc] = useState("");
@@ -61,14 +62,25 @@ export function NewTask({ stateId, onClose }: { stateId?: number; onClose: () =>
   return (
     <div className="modal-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }}>
       <form className="modal" onSubmit={submit}>
-        <h3>New task in {s.project.name}</h3>
-        <div className="ai-capture">
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} aria-label="Describe the task in your own words" placeholder="Or describe it in a sentence: Dor should fix the flaky checkout test by Thursday, urgent, about 2 points" />
-          <button type="button" onClick={fill} disabled={busy || !note.trim()} title="Claude reads the sentence and fills in the fields below"><TextCursorInput className="i" aria-hidden />{busy ? "Reading" : "Fill in"}</button>
+        <div className="modal-top">
+          <button type="button" className="icon" onClick={onClose} aria-label="Close"><X className="i" aria-hidden /></button>
+          <h3>New task <small>in {s.project.name}</small></h3>
+          <button type="button" className="soft" onClick={onClose}>Cancel</button>
+          <button className="primary" disabled={busy || !f.title.trim()}>Create task</button>
         </div>
+        <div className="tabs-pill" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "task"} className={tab === "task" ? "on" : ""} onClick={() => setTab("task")}><span className="tile"><SquareCheck className="i" aria-hidden /></span>Task</button>
+          <button type="button" role="tab" aria-selected={tab === "sentence"} className={tab === "sentence" ? "on" : ""} onClick={() => setTab("sentence")}><span className="tile"><Sparkles className="i" aria-hidden /></span>From a sentence</button>
+        </div>
+        {tab === "sentence" && (
+          <div className="ai-capture">
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} aria-label="Describe the task in your own words" placeholder="Dor should fix the flaky checkout test by Thursday, urgent, about 2 points" />
+            <button type="button" className="soft" onClick={async () => { await fill(); setTab("task"); }} disabled={busy || !note.trim()} title="Claude reads the sentence and fills in the fields"><TextCursorInput className="i" aria-hidden />{busy ? "Reading" : "Fill in"}</button>
+          </div>
+        )}
         <div className="title-row">
           <input autoFocus className="title-input" aria-label="Title" placeholder="Task title" value={f.title} onChange={set("title")} />
-          <button type="button" onClick={triage} disabled={triBusy || f.title.trim().length < 3} title="Claude suggests priority, estimate, labels and an owner, and checks for duplicates"><ListChecks className="i" aria-hidden />{triBusy ? "Checking" : "Suggest"}</button>
+          <button type="button" className="soft" onClick={triage} disabled={triBusy || f.title.trim().length < 3} title="Claude suggests priority, estimate, labels and an owner, and checks for duplicates"><ListChecks className="i" aria-hidden />{triBusy ? "Checking" : "Suggest"}</button>
         </div>
         {tri && (
           <div className="triage">
@@ -95,7 +107,7 @@ export function NewTask({ stateId, onClose }: { stateId?: number; onClose: () =>
           <label>Sprint<select value={f.sprint_id} onChange={set("sprint_id")}><option value="">No sprint</option>{s.sprints.filter((x) => x.status !== "closed").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
           <label>Due date<input type="date" value={f.due_date} onChange={set("due_date")} /></label>
         </div>
-        <div className="modal-actions"><button type="button" className="ghost" onClick={onClose}>Cancel</button><button className="primary" disabled={busy || !f.title.trim()}>Create task</button></div>
+        <label className="desc-field">Description<textarea rows={3} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Context, acceptance criteria, links. Mention a teammate with @name." /></label>
       </form>
     </div>
   );
