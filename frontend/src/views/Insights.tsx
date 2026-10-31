@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, qs } from "../api";
 import { Avatar } from "../components/Avatar";
-import { Bars } from "../components/Charts";
+import { Composition, WeekBars } from "../components/Charts";
 import { useStore } from "../store";
 import type { Activity } from "../types";
 import { PRIORITY, ago, fmtDate, plural, pressable } from "../util";
@@ -13,6 +13,12 @@ interface Summary {
 }
 interface Risk { kind: string; severity: "high" | "medium" | "low"; task_id: number | null; key: string | null; message: string; action: string }
 interface Forecast { probability_on_time: number | null; p50: string | null; p85: string | null; remaining_points: number; basis: string }
+
+/** Priority is ordered, so it reads as one hue from strong to faint rather than five colours. */
+const PRIO_SHADES = ["var(--accent)", "color-mix(in srgb, var(--accent) 72%, var(--sheet-solid))", "color-mix(in srgb, var(--accent) 48%, var(--sheet-solid))", "color-mix(in srgb, var(--accent) 28%, var(--sheet-solid))", "hatch"];
+/** Status follows the workflow left to right, so it uses the same ramp: faint for not started, full Harbor for done. */
+const stateShade = (group: string, name: string) =>
+  group === "completed" ? PRIO_SHADES[0] : group === "started" ? (/review/i.test(name) ? PRIO_SHADES[1] : PRIO_SHADES[2]) : group === "unstarted" ? PRIO_SHADES[3] : "hatch";
 
 export function Insights() {
   const s = useStore();
@@ -30,7 +36,6 @@ export function Insights() {
   if (!sum) return <div className="loading" aria-busy="true">Loading insights</div>;
   const taskKey = (id: number) => s.tasks.find((t) => t.id === id)?.key ?? `#${id}`;
   const open = sum.tasks_total - (sum.by_group.completed ?? 0) - (sum.by_group.cancelled ?? 0);
-  const maxPrio = Math.max(1, ...Object.values(sum.open_by_priority));
   const high = risks.filter((r) => r.severity === "high").length;
   const pct = Math.round(sum.completion * 100);
 
@@ -66,11 +71,9 @@ export function Insights() {
         </section>
         <section>
           <h3>Completed per week <small>story points</small></h3>
-          <Bars data={sum.weekly_throughput.slice(Math.max(0, Math.min(sum.weekly_throughput.findIndex((w) => w.points > 0), sum.weekly_throughput.length - 4))).map((w) => ({ label: fmtDate(w.week_ending), value: w.points }))} />
+          <WeekBars data={sum.weekly_throughput.slice(Math.max(0, Math.min(sum.weekly_throughput.findIndex((w) => w.points > 0), sum.weekly_throughput.length - 4))).map((w) => ({ label: fmtDate(w.week_ending), value: w.points }))} />
           <h3 style={{ marginTop: 28 }}>Open work by priority</h3>
-          {Object.entries(PRIORITY).map(([k, v]) => (
-            <div key={k} className="hbar"><span>{v.label}</span><div><i className={k === "urgent" ? "risk" : ""} style={{ width: `${((sum.open_by_priority[k] ?? 0) / maxPrio) * 100}%` }} /></div><b>{sum.open_by_priority[k] ?? 0}</b></div>
-          ))}
+          <Composition label="Open work by priority" parts={Object.entries(PRIORITY).map(([k, v], i) => ({ key: k, label: v.label, value: sum.open_by_priority[k] ?? 0, color: PRIO_SHADES[i] }))} />
         </section>
       </div>
 
@@ -88,10 +91,7 @@ export function Insights() {
         </section>
         <section>
           <h3>Tasks by status</h3>
-          {s.project.states.map((st) => {
-            const n = sum.by_state[String(st.id)] ?? 0;
-            return <div key={st.id} className="hbar"><span>{st.name}</span><div><i className={st.group === "completed" ? "accent" : ""} style={{ width: `${(n / Math.max(sum.tasks_total, 1)) * 100}%` }} /></div><b>{n}</b></div>;
-          })}
+          <Composition label="Tasks by status" parts={s.project.states.map((st) => ({ key: String(st.id), label: st.name, value: sum.by_state[String(st.id)] ?? 0, color: stateShade(st.group, st.name) }))} />
         </section>
       </div>
     </div>

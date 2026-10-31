@@ -2,7 +2,7 @@ import { Copy, FileText, Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, qs } from "../api";
 import { Avatar } from "../components/Avatar";
-import { LineChart } from "../components/Charts";
+import { Burndown as BurndownChart, Capacity } from "../components/Charts";
 import { Markdown } from "../components/Markdown";
 import { useStore } from "../store";
 import type { Sprint, Task } from "../types";
@@ -74,7 +74,7 @@ export function SprintView() {
       {creating && <NewSprint onDone={async () => { setCreating(false); await s.reload(); }} />}
       {!sprint ? <div className="empty big">No sprints yet. Create one to start planning.</div> : (
         <>
-          {sprint.goal && <p className="goal"><span className="mono">GOAL</span>{sprint.goal}</p>}
+          {sprint.goal && <p className="goal">{sprint.goal}</p>}
           {report && (
             <section className="panel report" aria-label="Status report">
               <header><h3>Status report</h3><small className="faint">Written by Claude from this sprint's live data. Check it before sending.</small><span className="spacer" />
@@ -83,48 +83,35 @@ export function SprintView() {
               <Markdown text={report} />
             </section>
           )}
-          <div className="figures">
-            <div className="figure"><small>Done</small><b>{done}<span className="faint" style={{ fontSize: 15 }}> / {total} pt</span></b><div className="meter"><i style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div></div>
-            <div className="figure"><small>Tasks</small><b>{scope.length}</b><span>{scope.filter((t) => groupOf(t) === "completed").length} done</span></div>
-            <div className="figure"><small>Working days left</small><b>{wl?.working_days_left ?? "n/a"}</b><span>ends {fmtDate(sprint.end_date)}</span></div>
-            <div className="figure"><small>Unassigned</small><b>{wl?.unassigned_points ?? 0}</b><span>points with no owner</span></div>
-          </div>
-          <div className="grid-2 section">
-            <section>
-              <h3>Burndown <small>points remaining</small></h3>
-              {bd && <LineChart series={bd.series} />}
-              <div className="legend"><i className="lg ideal" />ideal <i className="lg actual" />actual</div>
-            </section>
-            <section>
-              <h3>Will we finish on time? <small>5,000 simulated sprints</small></h3>
-              {fc && (
-                <>
-                  <div className="forecast-big">
-                    <b className={fc.probability_on_time != null && fc.probability_on_time < 0.5 ? "overdue" : ""}>{fc.probability_on_time == null ? "n/a" : `${Math.round(fc.probability_on_time * 100)}%`}</b>
-                    <span>chance of finishing by {fmtDate(fc.deadline, { day: "numeric", month: "long" })}</span>
-                  </div>
-                  <div className="fc-dates">
-                    <div><small>50% likely</small><b>{fmtDate(fc.p50)}</b></div>
-                    <div><small>85% likely</small><b>{fmtDate(fc.p85)}</b></div>
-                    <div><small>95% likely</small><b>{fmtDate(fc.p95)}</b></div>
-                    <div><small>Sprint ends</small><b>{fmtDate(fc.deadline)}</b></div>
-                  </div>
-                  <p className="fc-basis">{fc.remaining_points} points left. {fc.basis}</p>
-                </>
-              )}
-            </section>
-          </div>
+          <p className="ledger-line">
+            <span><b>{done}</b> of {total} points done</span>
+            <span><b>{scope.length}</b> tasks, {scope.filter((t) => groupOf(t) === "completed").length} done</span>
+            <span><b>{wl?.working_days_left ?? "n/a"}</b> working days left</span>
+            <span><b>{wl?.unassigned_points ?? 0}</b> points with no owner</span>
+          </p>
+          <section className="section chart-section">
+            <h3>Burndown and forecast</h3>
+            {fc && (
+              <p className="chart-lede">
+                {fc.probability_on_time == null ? "Not enough history to forecast yet." : <><b>{Math.round(fc.probability_on_time * 100)}% chance</b> of finishing by {fmtDate(fc.deadline, { day: "numeric", month: "long" })}. </>}
+                {fc.p50 && <>Even odds by <b>{fmtDate(fc.p50)}</b>, 85% likely by <b>{fmtDate(fc.p85)}</b>, 95% by {fmtDate(fc.p95)}.</>}
+              </p>
+            )}
+            <div className="legend"><i className="lg actual" />Points left <i className="lg plan" />Plan <i className="lg proj" />Forecast, 50 to 85% likely</div>
+            {bd && <BurndownChart series={bd.series} forecast={fc} />}
+            {fc && <p className="fc-basis">{fc.remaining_points} points left. {fc.basis}</p>}
+          </section>
           {wl && (
             <section className="section">
-              <h3>Capacity <small>open points against what each person can do before the sprint ends</small></h3>
+              <h3>Capacity <small>open points against what each person can finish before the sprint ends</small></h3>
               <div className="workload">
                 {wl.members.map((m) => {
-                  const u = m.utilization ?? 0;
+                  const over = Math.round((m.assigned_points - m.capacity_points) * 10) / 10;
                   return (
                     <div key={m.user_id} className="wl-row">
                       <span className="with-avatar"><Avatar user={{ id: m.user_id, name: m.name, avatar_color: m.avatar_color, email: "" }} size={22} />{m.name}</span>
-                      <div className="wl-track" role="img" aria-label={`${Math.round(u * 100)}% of capacity`}><div className={u > 1 ? "over" : u > 0.85 ? "warn" : ""} style={{ width: `${Math.min(u, 1.5) / 1.5 * 100}%` }} /><i style={{ left: `${100 / 1.5}%` }} /></div>
-                      <span className={u > 1 ? "overdue" : ""}>{m.assigned_points} / {m.capacity_points} pt</span>
+                      <Capacity load={m.assigned_points} capacity={m.capacity_points} />
+                      <span>{m.assigned_points} of {m.capacity_points} pt{over > 0 && <em className="over-by"> {over} over</em>}</span>
                     </div>
                   );
                 })}

@@ -4,7 +4,7 @@ Project management that tells you when the work will land. Kanban, list, Gantt a
 relational database, a planning engine that simulates delivery dates from the work a team actually
 finished, and a Claude Opus 5.5 assistant that reads the project and changes it on request.
 
-![Board](docs/screenshots/1-board.png)
+![Tasks grouped by status, under the sprint forecast](docs/screenshots/2-list.png)
 
 ## What it does
 
@@ -34,7 +34,7 @@ finished, and a Claude Opus 5.5 assistant that reads the project and changes it 
 
 ### Planning and collaboration
 
-- **Five views of one project.** Drag-and-drop board with WIP limits, sortable list, Gantt timeline
+- **Five views of one project.** A list grouped by status under a live sprint forecast, a drag-and-drop board with WIP limits, a Gantt timeline
   with dependency arrows, sprint planning, and insights.
 - **Real-time.** Every change is pushed over WebSockets to everyone viewing the project.
 - **Critical path.** Dependencies form a DAG (cycles are rejected). Kairos runs the Critical Path
@@ -47,21 +47,23 @@ finished, and a Claude Opus 5.5 assistant that reads the project and changes it 
   arrive in a personal inbox over a per-user WebSocket.
 - **Keyboard and accessibility.** `C` new task, `A` assistant, `Ctrl K` command bar; keyboard-operable
   cards and rows, visible focus, labelled controls, an alert dialog before delete, reduced-motion support.
-- **Light and dark.** Follows the OS setting, with a toggle in the account menu.
+- **Light and dark.** Follows the OS setting, with a toggle in the side rail.
 - **Audit trail.** Field-level activity log (who changed what, from what, to what) and comments.
 - **Multi-tenant.** Workspaces, owner/admin/member/viewer roles, JWT auth.
 
-| Sprint and forecast | Insights and risks |
+| Board | Sprint and forecast |
 |---|---|
-| ![Sprint](docs/screenshots/4-sprint.png) | ![Insights](docs/screenshots/5-insights.png) |
-| **Timeline and critical path** | **Task details** |
-| ![Timeline](docs/screenshots/3-timeline.png) | ![Drawer](docs/screenshots/6-task-drawer.png) |
-| **Project assistant** | **New task with triage** |
-| ![Assistant](docs/screenshots/7-assistant.png) | ![New task](docs/screenshots/8-new-task.png) |
-| **My day** | **Find or ask** |
-| ![My day](docs/screenshots/9-my-day.png) | ![Command bar](docs/screenshots/10-command-bar.png) |
-| **Dark theme** | **Sign in** |
-| ![Dark board](docs/screenshots/11-dark-board.png) | ![Sign in](docs/screenshots/0-login.png) |
+| ![Board](docs/screenshots/1-board.png) | ![Sprint](docs/screenshots/4-sprint.png) |
+| **Insights and risks** | **Timeline and critical path** |
+| ![Insights](docs/screenshots/5-insights.png) | ![Timeline](docs/screenshots/3-timeline.png) |
+| **Task details** | **Project assistant** |
+| ![Drawer](docs/screenshots/6-task-drawer.png) | ![Assistant](docs/screenshots/7-assistant.png) |
+| **New task with triage** | **My day** |
+| ![New task](docs/screenshots/8-new-task.png) | ![My day](docs/screenshots/9-my-day.png) |
+| **Find or ask** | **Dark theme** |
+| ![Command bar](docs/screenshots/10-command-bar.png) | ![Dark theme](docs/screenshots/11-dark-board.png) |
+| **Sign in** | |
+| ![Sign in](docs/screenshots/0-login.png) | |
 
 The visual system (type, colour, glyphs, motion) is documented in [DESIGN.md](DESIGN.md).
 

@@ -18,8 +18,9 @@ const STATE_COLOR: Record<StateGroup, string> = {
 };
 
 /** One shape per state group, so status reads without relying on colour alone. */
-export function StateIcon({ group, size = 14, title }: { group: StateGroup; size?: number; title?: string }) {
-  const c = STATE_COLOR[group];
+export function StateIcon({ group, size = 14, title, name }: { group: StateGroup; size?: number; title?: string; name?: string }) {
+  // A started state named like review is waiting on someone else, so it takes the review colour.
+  const c = group === "started" && /review/i.test(name ?? title ?? "") ? "var(--review)" : STATE_COLOR[group];
   return (
     <svg viewBox="0 0 14 14" width={size} height={size} className="state-ico" role={title ? "img" : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
       {group === "backlog" && <circle cx="7" cy="7" r="5.5" fill="none" stroke={c} strokeWidth="1.4" strokeDasharray="2.2 1.8" />}

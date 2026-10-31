@@ -80,7 +80,7 @@ export function TaskDrawer() {
 
         <div className="props">
           <label htmlFor="f-status">Status</label>
-          <span className="with-avatar"><StateIcon group={project.states.find((x) => x.id === task.state_id)?.group ?? "unstarted"} />
+          <span className="with-avatar"><StateIcon group={project.states.find((x) => x.id === task.state_id)?.group ?? "unstarted"} name={project.states.find((x) => x.id === task.state_id)?.name} />
           <select id="f-status" value={task.state_id} onChange={(e) => patch({ state_id: +e.target.value })}>
             {project.states.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
           </select></span>

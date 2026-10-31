@@ -37,16 +37,19 @@ export function MyDay({ me, inbox, onInbox, openTask }: {
   const blocked = tasks?.filter((t) => t.blocked).length ?? 0;
 
   return (
-    <div className="myday">
+    <div className="sheet myday">
       <header className="page-head">
-        <div>
-          <div className="day-date">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
-          <h1>{me.name.split(" ")[0]}'s day</h1>
-          <p>{tasks ? `${plural(tasks.length, "open task")} across your projects. ${overdue ? `${overdue} overdue` : "Nothing overdue"}${blocked ? `, ${blocked} waiting on someone else` : ""}.` : "Loading your work"}</p>
+        <div className="headline">
+          <div className="headline-main">
+          <p className="kicker">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</p>
+          <h1>{tasks
+            ? <>{me.name.split(" ")[0]}, you have <em>{plural(tasks.length, "open task")}</em>. {overdue ? <span className="late">{overdue} overdue</span> : "Nothing overdue"}{blocked ? `, ${blocked} waiting on someone else` : ""}.</>
+            : "Loading your work"}</h1>
+          </div>
         </div>
       </header>
       <div className="myday-grid">
-        <section aria-label="Plan and tasks">
+        <section className="day-panel" aria-label="Plan and tasks">
           <div className="plan-block">
             <div className="plan-head">
               <h2>Today's plan</h2>

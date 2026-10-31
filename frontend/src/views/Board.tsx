@@ -60,7 +60,7 @@ export function Board({ onNew }: { onNew: (stateId: number) => void }) {
             <section key={st.id} className={`column${drop?.state === st.id ? " over" : ""}`}
               onDragOver={(e) => onDragOver(e, st.id)} onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDrop(null)} onDrop={() => onDrop(st.id)}>
               <header>
-                <StateIcon group={st.group} />
+                <StateIcon group={st.group} name={st.name} />
                 <b>{st.name}</b>
                 <span className={`count${over ? " over" : ""}`} title={st.wip_limit ? `WIP limit ${st.wip_limit}` : ""}>{items.length}{st.wip_limit ? `/${st.wip_limit}` : ""}</span>
                 <span className="spacer" />
