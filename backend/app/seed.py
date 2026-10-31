@@ -10,6 +10,8 @@ from datetime import date, datetime, timedelta
 from .auth import hash_password
 from .db import Base, SessionLocal, engine
 from .models import (
+    Notification,
+    NotificationKind,
     Comment,
     Dependency,
     Label,
@@ -23,6 +25,7 @@ from .models import (
     StateGroup,
     Task,
     TaskActivity,
+    utcnow,
     User,
     Workspace,
 )
@@ -180,11 +183,27 @@ def run(today: date | None = None) -> None:
         (7, 0, "Added it. Please make sure we handle `invoice.payment_failed` too."),
         (8, 3, "Metering writes are ~400/s at peak; batching every 5s keeps Postgres happy."),
         (13, 3, "Blocked until checkout is merged - no point load testing a moving target."),
+        (8, 2, "@may can you sign off on the batching window before Friday?"),
     ]
     for k, (idx, who, body) in enumerate(conv):
         c = Comment(task_id=tasks[idx].id, author_id=users[who].id, body=body,
-                    created_at=datetime.utcnow() - timedelta(hours=30 - k * 6))
+                    created_at=utcnow() - timedelta(hours=30 - k * 6))
         db.add(c)
+
+    # ---- Inbox for the demo user ------------------------------------------------
+    db.flush()
+    inbox = [
+        (2, 8, NotificationKind.mentioned, 'Noa Katz mentioned you on {key}: "@may can you sign off on the batching window before Friday?"', 2, False),
+        (3, 13, NotificationKind.commented, 'Amit Ben-David commented on {key}: "Blocked until checkout is merged - no point load testing a moving target."', 8, False),
+        (1, 7, NotificationKind.status, "Dor Levi moved {key} to In review", 20, False),
+        (1, 9, NotificationKind.assigned, "Dor Levi assigned you {key}: {title}", 28, True),
+    ]
+    for actor, idx, kind, text, hours, read in inbox:
+        t = tasks[idx]
+        db.add(Notification(user_id=users[0].id, actor_id=users[actor].id, project_id=p.id, task_id=t.id, kind=kind,
+                            text=text.format(key=f"{p.key}-{t.number}", title=t.title),
+                            created_at=utcnow() - timedelta(hours=hours),
+                            read_at=utcnow() if read else None))
 
     # ---- Project 2: Mobile app ------------------------------------------------
     m = _project(db, ws, "Mobile App Discovery", "MOB", "#14b8a6",

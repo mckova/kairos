@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, auth } from "./api";
 import { Avatar } from "./components/Avatar";
+import { CommandPalette } from "./components/CommandPalette";
 import { Copilot } from "./components/Copilot";
 import { Filters } from "./components/Filters";
 import { NewTask } from "./components/NewTask";
 import { TaskDrawer } from "./components/TaskDrawer";
+import { useUserSocket } from "./realtime";
 import { ProjectProvider, useStore } from "./store";
-import type { Member, Project, User, Workspace } from "./types";
+import type { Member, Notification, Project, User, Workspace } from "./types";
 import { Board } from "./views/Board";
 import { Insights } from "./views/Insights";
 import { ListView } from "./views/ListView";
+import { MyDay } from "./views/MyDay";
 import { SprintView } from "./views/SprintView";
 import { Timeline } from "./views/Timeline";
 
@@ -22,9 +25,11 @@ const VIEWS: { id: View; label: string; icon: string }[] = [
   { id: "insights", label: "Insights", icon: "✦" },
 ];
 
-function parseHash(): { pid: number | null; view: View } {
-  const m = location.hash.match(/^#\/p\/(\d+)\/(\w+)/);
-  return { pid: m ? +m[1] : null, view: (VIEWS.find((v) => v.id === m?.[2])?.id ?? "board") as View };
+interface Route { me: boolean; pid: number | null; view: View; task: number | null }
+function parseHash(): Route {
+  if (location.hash.startsWith("#/me")) return { me: true, pid: null, view: "board", task: null };
+  const m = location.hash.match(/^#\/p\/(\d+)\/(\w+)(?:\/t\/(\d+))?/);
+  return { me: false, pid: m ? +m[1] : null, view: (VIEWS.find((v) => v.id === m?.[2])?.id ?? "board") as View, task: m?.[3] ? +m[3] : null };
 }
 
 export default function App() {
@@ -85,6 +90,10 @@ function Shell({ me }: { me: User }) {
   const [route, setRoute] = useState(parseHash());
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const [modal, setModal] = useState<"project" | "workspace" | null>(null);
+  const [inbox, setInbox] = useState<{ unread: number; items: Notification[] }>({ unread: 0, items: [] });
+  const [palette, setPalette] = useState(false);
+  const [ask, setAsk] = useState<{ text: string; n: number } | null>(null);
+  const [newSignal, setNewSignal] = useState(0);
 
   const toast = useCallback((msg: string) => {
     const id = Math.random();
@@ -99,17 +108,31 @@ function Shell({ me }: { me: User }) {
     setWs((cur) => list.find((w) => w.id === cur?.id) ?? list[0] ?? null);
   };
   useEffect(() => { loadWs(); }, []);
+  const loadInbox = useCallback(() => api<{ unread: number; items: Notification[] }>("/api/me/notifications").then(setInbox).catch(() => {}), []);
+  useEffect(() => { loadInbox(); }, []);
+  useUserSocket((e) => { if (e.event === "notification.created") { loadInbox(); toast(`🔔 ${e.data.text}`); } });
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); setPalette((v) => !v); } };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, []);
   useEffect(() => {
     if (!ws) return;
     Promise.all([api<Project[]>(`/api/workspaces/${ws.id}/projects`), api<Member[]>(`/api/workspaces/${ws.id}/members`)]).then(([p, m]) => {
       setProjects(p); setMembers(m);
-      if (!route.pid || !p.some((x) => x.id === route.pid)) { if (p[0]) location.hash = `#/p/${p[0].id}/${route.view}`; }
+      const r = parseHash();
+      if (!r.me && (!r.pid || !p.some((x) => x.id === r.pid))) { if (p[0]) location.hash = `#/p/${p[0].id}/${r.view}`; }
     });
   }, [ws?.id]);
 
   const go = (pid: number, view: View = route.view) => { location.hash = `#/p/${pid}/${view}`; };
+  const goTask = (pid: number, tid: number) => { location.hash = `#/p/${pid}/${route.me ? "board" : route.view}/t/${tid}`; };
+  const askAI = (text: string) => {
+    if (!pid && projects[0]) go(projects[0].id);
+    setAsk({ text, n: Date.now() });
+  };
   const logout = () => { auth.clear(); location.hash = ""; location.reload(); };
-  const pid = route.pid && projects.some((p) => p.id === route.pid) ? route.pid : null;
+  const pid = !route.me && route.pid && projects.some((p) => p.id === route.pid) ? route.pid : null;
 
   return (
     <div className="app">
@@ -118,7 +141,11 @@ function Shell({ me }: { me: User }) {
         <select className="ws-pick" value={ws?.id ?? ""} onChange={(e) => setWs(workspaces.find((w) => w.id === +e.target.value) ?? null)}>
           {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
         </select>
-        <div className="side-title">Projects <button className="ghost icon" title="New project" onClick={() => setModal(ws ? "project" : "workspace")}>＋</button></div>
+        <button className="search-btn" onClick={() => setPalette(true)}><span>⌕ Search or ask AI…</span><kbd>Ctrl K</kbd></button>
+        <a className={`side-item${route.me ? " on" : ""}`} onClick={() => { location.hash = "#/me"; }}>
+          <span className="dot-ico">☀</span>My day{inbox.unread > 0 && <span className="badge">{inbox.unread}</span>}
+        </a>
+        <div className="side-title">Projects <button className="ghost icon" title="New project" aria-label="New project" onClick={() => setModal(ws ? "project" : "workspace")}>＋</button></div>
         {projects.map((p) => (
           <a key={p.id} className={`side-item${p.id === pid ? " on" : ""}`} onClick={() => go(p.id)}>
             <span className="dot" style={{ background: p.color }} />{p.name}<small>{p.key}</small>
@@ -128,12 +155,14 @@ function Shell({ me }: { me: User }) {
         <div className="side-title">Team</div>
         <div className="team">{members.map((m) => <Avatar key={m.user.id} user={m.user} size={26} />)}</div>
         <div className="spacer" />
-        <div className="me"><Avatar user={me} size={28} /><span>{me.name}<small>{me.email}</small></span><button className="ghost" onClick={logout} title="Sign out">⎋</button></div>
+        <div className="me"><Avatar user={me} size={28} /><span>{me.name}<small>{me.email}</small></span><button className="ghost" onClick={logout} title="Sign out" aria-label="Sign out">⎋</button></div>
       </nav>
       <main className="main">
-        {pid ? (
+        {route.me ? (
+          <MyDay me={me} inbox={inbox} onInbox={loadInbox} openTask={goTask} />
+        ) : pid ? (
           <ProjectProvider key={pid} me={me} members={members} projectId={pid} toast={toast} onProject={(p) => setProjects((all) => all.map((x) => (x.id === p.id ? p : x)))}>
-            <ProjectPage view={route.view} setView={(v) => go(pid, v)} />
+            <ProjectPage view={route.view} setView={(v) => go(pid, v)} task={route.task} ask={ask} newSignal={newSignal} />
           </ProjectProvider>
         ) : (
           <div className="empty big">{projects.length ? "Pick a project" : "Create your first project to get started."}</div>
@@ -141,19 +170,30 @@ function Shell({ me }: { me: User }) {
       </main>
       {modal === "project" && ws && <NewProject ws={ws} onClose={() => setModal(null)} onCreated={(p) => { setProjects((x) => [...x, p]); go(p.id, "board"); setModal(null); }} />}
       {modal === "workspace" && <NewWorkspace onClose={() => setModal(null)} onCreated={async () => { setModal(null); await loadWs(); }} />}
+      {palette && (
+        <CommandPalette projects={projects} currentProject={pid} goProject={(p, v) => go(p, (v as View) ?? "board")} goMyDay={() => { location.hash = "#/me"; }}
+          openTask={goTask} newTask={() => setNewSignal(Date.now())} askAI={askAI} onClose={() => setPalette(false)} />
+      )}
       <div className="toasts">{toasts.map((t) => <div key={t.id} className="toast">{t.msg}</div>)}</div>
     </div>
   );
 }
 
-function ProjectPage({ view, setView }: { view: View; setView: (v: View) => void }) {
+function ProjectPage({ view, setView, task, ask, newSignal }: {
+  view: View; setView: (v: View) => void; task: number | null; ask: { text: string; n: number } | null; newSignal: number;
+}) {
   const s = useStore();
   const [newIn, setNewIn] = useState<number | undefined | null>(null);
   const [copilot, setCopilot] = useState(false);
+  const [initial, setInitial] = useState<string | undefined>();
+  const loaded = s.tasks.length > 0;
+  useEffect(() => { if (task && loaded) { s.openTask(task); history.replaceState(null, "", `#/p/${s.project.id}/${view}`); } }, [task, loaded]);
+  useEffect(() => { if (ask) { setInitial(ask.text); setCopilot(true); } }, [ask?.n]);
+  useEffect(() => { if (newSignal) setNewIn(undefined); }, [newSignal]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
-      if (e.key === "k" && !e.metaKey && !e.ctrlKey && !["INPUT", "TEXTAREA", "SELECT"].includes(tag)) { e.preventDefault(); setCopilot((v) => !v); }
+      if (e.key === "a" && !e.metaKey && !e.ctrlKey && !["INPUT", "TEXTAREA", "SELECT"].includes(tag)) { e.preventDefault(); setInitial(undefined); setCopilot((v) => !v); }
       if (e.key === "c" && !e.metaKey && !e.ctrlKey && !["INPUT", "TEXTAREA", "SELECT"].includes(tag)) { e.preventDefault(); setNewIn(undefined); }
     };
     window.addEventListener("keydown", k);
@@ -167,7 +207,7 @@ function ProjectPage({ view, setView }: { view: View; setView: (v: View) => void
           <p className="muted">{s.project.description}</p>
         </div>
         <span className="spacer" />
-        <button className="ai-btn big" onClick={() => setCopilot(!copilot)} title="Shortcut: K">✦ Copilot</button>
+        <button className="ai-btn big" onClick={() => setCopilot(!copilot)} title="Shortcut: A">✦ Copilot</button>
         <button className="primary" onClick={() => setNewIn(undefined)} title="Shortcut: C">＋ New task</button>
       </header>
       <div className="tabs">
@@ -183,7 +223,7 @@ function ProjectPage({ view, setView }: { view: View; setView: (v: View) => void
       </div>
       {newIn !== null && <NewTask stateId={newIn} onClose={() => setNewIn(null)} />}
       <TaskDrawer />
-      {copilot && <Copilot onClose={() => setCopilot(false)} />}
+      {copilot && <Copilot initial={initial} onClose={() => { setCopilot(false); setInitial(undefined); }} />}
     </>
   );
 }
@@ -197,7 +237,7 @@ function NewProject({ ws, onClose, onCreated }: { ws: Workspace; onClose: () => 
     catch (x) { setErr((x as Error).message); }
   };
   return (
-    <div className="modal-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }}>
       <form className="modal" onSubmit={submit}>
         <h3>New project</h3>
         <input autoFocus placeholder="Project name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value, key: f.key || "" })}
@@ -224,7 +264,7 @@ function NewWorkspace({ onClose, onCreated }: { onClose: () => void; onCreated: 
     catch (x) { setErr((x as Error).message); }
   };
   return (
-    <div className="modal-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }}>
       <form className="modal" onSubmit={submit}>
         <h3>New workspace</h3>
         <input autoFocus placeholder="Team or company name" value={name} onChange={(e) => setName(e.target.value)} />

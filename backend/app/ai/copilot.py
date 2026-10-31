@@ -174,3 +174,104 @@ def status_report(db: Session, user: User, project: Project, sprint: Sprint | No
     response = ai.create(max_tokens=8000, output_config={"effort": "medium"}, messages=[{"role": "user", "content": prompt}])
     ai.check_stop(response)
     return ai.text_of(response)
+
+
+# ---- personal daily plan ("My day") --------------------------------------------------
+PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "headline": {"type": "string", "description": "one sentence: how today looks"},
+        "focus": {
+            "type": "array",
+            "description": "the 1-5 tasks to do today, in order",
+            "items": {
+                "type": "object",
+                "properties": {"task_id": {"type": "integer"}, "reason": {"type": "string"}},
+                "required": ["task_id", "reason"],
+                "additionalProperties": False,
+            },
+        },
+        "heads_up": {"type": "array", "items": {"type": "string"}, "description": "risks, blockers or things to raise"},
+        "inbox_summary": {"type": "string", "description": "what changed in the inbox, or empty"},
+    },
+    "required": ["headline", "focus", "heads_up", "inbox_summary"],
+    "additionalProperties": False,
+}
+
+
+def plan_day(user: User, tasks: list[dict], inbox: list[str]) -> dict:
+    today = date.today()
+    prompt = (
+        f"You are planning today for {user.name}. Today is {today.isoformat()} ({today:%A}). "
+        "Pick the 1-5 tasks they should work on today, in order, from their open tasks only. Weigh due dates, "
+        "priority, whether a task is blocked (blocked tasks are rarely the right focus; mention the blocker instead), "
+        "work already in progress (finish before starting) and sprint deadlines. Give a short concrete reason for each. "
+        "heads_up: overdue work, blockers to chase, anything to raise with the team (max 4). "
+        "inbox_summary: one or two sentences on the unread notifications, or empty if none. "
+        "Answer in English and refer to tasks by key.\n\n"
+        f"Open tasks: {json.dumps(tasks, default=str)}\n\nUnread notifications: {json.dumps(inbox)}"
+    )
+    response = ai.create(
+        max_tokens=6000,
+        output_config={"effort": "medium", "format": {"type": "json_schema", "schema": PLAN_SCHEMA}},
+        messages=[{"role": "user", "content": prompt}],
+    )
+    ai.check_stop(response)
+    data = json.loads(ai.text_of(response))
+    valid = {t["id"] for t in tasks}
+    data["focus"] = [f for f in data["focus"] if f["task_id"] in valid][:5]
+    return data
+
+
+# ---- triage: estimate, priority, labels, owner and duplicates ---------------------------
+TRIAGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "priority": {"type": "string", "enum": ["none", "low", "medium", "high", "urgent"]},
+        "estimate": {"type": ["number", "null"]},
+        "label_names": {"type": "array", "items": {"type": "string"}},
+        "assignee_id": {"type": ["integer", "null"]},
+        "assignee_reason": {"type": "string"},
+        "duplicates": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"task_id": {"type": "integer"}, "reason": {"type": "string"}},
+                "required": ["task_id", "reason"],
+                "additionalProperties": False,
+            },
+        },
+        "rationale": {"type": "string", "description": "one sentence on the estimate and priority"},
+    },
+    "required": ["priority", "estimate", "label_names", "assignee_id", "assignee_reason", "duplicates", "rationale"],
+    "additionalProperties": False,
+}
+
+
+def triage(project: Project, title: str, description: str, existing: list[dict], people: list[dict]) -> dict:
+    prompt = (
+        f"Triage a new task for project {project.name} ({project.description}).\n"
+        "- priority and estimate (story points from 0.5, 1, 2, 3, 5, 8, 13), calibrated against the existing tasks.\n"
+        "- label_names: only from the project's labels.\n"
+        "- assignee_id: the best owner given who has done similar work and their spare capacity "
+        "(null if nobody fits); assignee_reason: one short sentence.\n"
+        "- duplicates: existing tasks that are the same piece of work or overlap heavily (empty if none). "
+        "Be strict: related is not duplicate.\n\n"
+        f"New task title: {title}\nDescription: {description or '(none)'}\n\n"
+        f"Labels: {[l.name for l in project.labels]}\nPeople: {json.dumps(people)}\n"
+        f"Existing tasks: {json.dumps(existing, default=str)}"
+    )
+    response = ai.create(
+        max_tokens=6000,
+        output_config={"effort": "low", "format": {"type": "json_schema", "schema": TRIAGE_SCHEMA}},
+        messages=[{"role": "user", "content": prompt}],
+    )
+    ai.check_stop(response)
+    data = json.loads(ai.text_of(response))
+    ids = {t["id"] for t in existing}
+    data["duplicates"] = [d for d in data["duplicates"] if d["task_id"] in ids][:3]
+    if data.get("assignee_id") not in {p["id"] for p in people}:
+        data["assignee_id"] = None
+    names = {l.name.lower(): l.id for l in project.labels}
+    data["label_ids"] = [names[n.lower()] for n in data.pop("label_names", []) if n.lower() in names]
+    return data

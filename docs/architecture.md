@@ -3,7 +3,7 @@
 ```
  React 19 + TypeScript (Vite)                FastAPI (Python 3.12)                 PostgreSQL 16
  ┌───────────────────────────┐  REST/JSON   ┌───────────────────────────┐  SQLAlchemy 2  ┌──────────────┐
- │ Board · List · Timeline   │ ───────────► │ routers/  auth, workspaces│ ─────────────► │ 12 tables    │
+ │ Board · List · Timeline   │ ───────────► │ routers/  auth, workspaces│ ─────────────► │ 13 tables    │
  │ Sprints · Insights        │              │   projects, tasks, sprints│                │ FK + unique  │
  │ ProjectProvider (store)   │ ◄─────────── │   analytics               │                │ constraints  │
  │ useProjectSocket          │  WebSocket   │ services/ ordering,       │                └──────────────┘
@@ -32,7 +32,18 @@
 * `ai/copilot.py` - the agent loop (max 12 turns; assistant content, including thinking blocks, is
   appended unchanged), plus three single-call features using structured JSON output: task breakdown,
   natural-language task capture, and the sprint status report.
+* `ai/copilot.py` also holds the two personal features: `plan_day` (ordered focus list across all projects,
+  heads-up items and an inbox summary) and `triage` (priority, estimate, labels, best owner and likely
+  duplicates for a draft task). Both use structured output and drop any task id the model did not get.
 * The server is stateless: the browser sends the visible chat history with each request.
+
+## Inbox and real time
+
+* `services/notify.py` writes a `Notification` for assignments, `@mentions` (resolved against workspace
+  members only), comments and status changes on tasks you own or reported. The actor is never notified.
+* `realtime.Hub` has one channel per project (`/ws/projects/{id}`) for board sync and one per user
+  (`/ws/me`) that tells open tabs to refresh the inbox.
+* `/api/search` and `/api/me/tasks` are scoped to the projects of workspaces the user belongs to.
 
 ## Data model
 
@@ -44,6 +55,7 @@ Workspace 1─* Project 1─* State            (group: backlog/unstarted/started
                     1─* Task *─* Label     (number → PLS-12, rank, estimate, dates, parent_id)
                     1─* Dependency         (blocker → blocked, acyclic)
 Task 1─* Comment, Task 1─* TaskActivity    (verb, field, old_value, new_value)
+User 1─* Notification *─1 Task            (assigned/mentioned/commented/status, read_at)
 ```
 
 ## Request flow (drag a card)

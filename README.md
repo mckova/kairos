@@ -23,6 +23,13 @@ act on it in plain language.
   and the new-task form fills itself (assignee, due date, priority, estimate, labels).
 - **AI status report** - a stakeholder-ready sprint report written from the live burndown, Monte Carlo
   forecast, risk radar, workload and activity feed.
+- **Plan my day** - a personal home page across every project: Claude orders today's work from your
+  open tasks, deadlines, blockers and unread inbox, gives the reason for each pick and flags what to chase.
+- **AI triage** - type a title and Claude suggests priority, estimate and labels calibrated against the
+  project, proposes the best owner from who has done similar work and who has spare capacity, and
+  warns about likely duplicates before you create them.
+- **Ask from anywhere** - the Ctrl/⌘ K command bar searches every task you can see, jumps to any project
+  or view, and hands a full sentence straight to the copilot.
 - Uses `claude-opus-5-5` with adaptive thinking and server-side refusal fallbacks; every other feature
   works without an API key.
 
@@ -37,6 +44,10 @@ act on it in plain language.
   probability of finishing the sprint on time and P50/P85/P95 delivery dates.
 - **Risk radar** - overdue, blocked-while-in-progress, WIP breaches, unestimated sprint work and
   over-capacity people, each with a suggested action (e.g. *"Hand PLS-11 (3 pts) to May, who has 7 pts spare"*).
+- **Inbox and @mentions** - assignments, `@name` mentions in comments and descriptions, comments and
+  status changes on your work land in a personal inbox, pushed live over a per-user WebSocket.
+- **Keyboard first and accessible** - command bar, `C` new task, `A` copilot, keyboard-operable cards and
+  rows, visible focus, labelled controls, confirm dialogs for destructive actions, reduced-motion support.
 - **Full audit trail** - field-level activity log (who changed what, from what, to what), comments.
 - **Multi-tenant with roles** - workspaces, owner/admin/member/viewer permissions, JWT auth.
 
@@ -47,6 +58,8 @@ act on it in plain language.
 | ![Timeline](docs/screenshots/3-timeline.png) | ![Drawer](docs/screenshots/6-task-drawer.png) |
 | **AI copilot** | **AI task capture** |
 | ![Copilot](docs/screenshots/7-copilot.png) | ![AI capture](docs/screenshots/8-ai-capture.png) |
+| **My day: AI plan, my tasks, inbox** | **Command bar: search or ask the AI** |
+| ![My day](docs/screenshots/10-my-day.png) | ![Command bar](docs/screenshots/12-palette-ask.png) |
 
 ## Tech stack
 
@@ -56,7 +69,7 @@ act on it in plain language.
 | Backend | FastAPI, Pydantic v2, SQLAlchemy 2, WebSockets, JWT + bcrypt |
 | AI | Anthropic Python SDK, Claude Opus 5.5, tool-use agent loop, structured outputs, refusal fallbacks |
 | Database | PostgreSQL 16 (SQLite for zero-setup development and tests) |
-| Quality | 30 pytest tests (incl. the agent loop with a scripted fake Claude client) on SQLite and PostgreSQL, GitHub Actions CI |
+| Quality | 36 pytest tests (incl. the agent loop with a scripted fake Claude client) on SQLite and PostgreSQL, GitHub Actions CI |
 | Deploy | Multi-stage Dockerfile (one image serves API + SPA), docker-compose with Postgres |
 
 ## Run it
@@ -111,16 +124,16 @@ TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost/kairos_test pytest -q
 
 ```
 backend/app/
-  models.py          12-table relational schema
-  routers/           auth, workspaces, projects, tasks, sprints, analytics
-  services/          ordering (fractional ranks), activity log, scheduling (CPM), forecast (Monte Carlo)
+  models.py          13-table relational schema
+  routers/           auth, workspaces, projects, tasks, sprints, analytics, ai, me (inbox, my work, search)
+  services/          ordering (fractional ranks), activity log, notify (inbox + @mentions), scheduling (CPM), forecast (Monte Carlo)
   ai/                client (Claude SDK wrapper), tools (agent toolbox), copilot (agent loop + AI features)
-  realtime.py        per-project WebSocket fan-out
+  realtime.py        WebSocket fan-out per project and per user
   seed.py            realistic demo workspace
 frontend/src/
   store.tsx          project state + real-time sync
-  views/             Board, ListView, Timeline, SprintView, Insights
-  components/        TaskCard, TaskDrawer, NewTask, Filters, Charts
+  views/             MyDay, Board, ListView, Timeline, SprintView, Insights
+  components/        CommandPalette, Copilot, TaskCard, TaskDrawer, NewTask, Confirm, Charts
 docs/                architecture notes, screenshots
 ```
 

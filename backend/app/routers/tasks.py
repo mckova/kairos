@@ -34,7 +34,8 @@ from ..schemas import (
     TaskOut,
     TaskPatch,
 )
-from ..services import activity, ordering
+from ..models import NotificationKind
+from ..services import activity, notify, ordering
 from ..services.scheduling import would_create_cycle
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["tasks"])
@@ -72,26 +73,26 @@ def _check_refs(db: Session, project: Project, data: dict) -> None:
     if data.get("state_id") is not None:
         s = db.get(State, data["state_id"])
         if s is None or s.project_id != project.id:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "state_id is not in this project")
+            raise HTTPException(422, "state_id is not in this project")
     if data.get("sprint_id") is not None:
         sp = db.get(Sprint, data["sprint_id"])
         if sp is None or sp.project_id != project.id:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "sprint_id is not in this project")
+            raise HTTPException(422, "sprint_id is not in this project")
     if data.get("parent_id") is not None:
         parent = db.get(Task, data["parent_id"])
         if parent is None or parent.project_id != project.id:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "parent_id is not in this project")
+            raise HTTPException(422, "parent_id is not in this project")
     if data.get("assignee_id") is not None:
         if not db.query(Membership).filter_by(workspace_id=project.workspace_id, user_id=data["assignee_id"]).first():
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "assignee is not a workspace member")
+            raise HTTPException(422, "assignee is not a workspace member")
     if data.get("start_date") and data.get("due_date") and data["due_date"] < data["start_date"]:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "due_date is before start_date")
+        raise HTTPException(422, "due_date is before start_date")
 
 
 def _labels(db: Session, project: Project, ids: list[int]) -> list[Label]:
     labels = db.query(Label).filter(Label.project_id == project.id, Label.id.in_(ids)).all() if ids else []
     if len(labels) != len(set(ids)):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "unknown label id")
+        raise HTTPException(422, "unknown label id")
     return labels
 
 
@@ -160,7 +161,12 @@ def create_task(project_id: int, body: TaskIn, user: User = Depends(current_user
     db.add(task)
     db.flush()
     activity.record(db, task, user, "created")
+    notes = notify.notify(db, task, user, NotificationKind.assigned, f"{user.name} assigned you {task.key}: {task.title}", [task.assignee_id])
+    mentioned = [u.id for u in notify.mentioned_users(db, project.workspace_id, task.description)]
+    notes += notify.notify(db, task, user, NotificationKind.mentioned, f"{user.name} mentioned you in {task.key}: {task.title}",
+                           [u for u in mentioned if u != task.assignee_id])
     db.commit()
+    notify.push(db, notes)
     out = serialize_one(db, task)
     hub.publish(project.id, "task.created", out.model_dump(mode="json"), user.id)
     return out
@@ -186,7 +192,7 @@ def update_task(
     }
     _check_refs(db, project, merged)
     if changes.get("parent_id") == task.id:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "a task cannot be its own parent")
+        raise HTTPException(422, "a task cannot be its own parent")
 
     if "label_ids" in changes:
         new = _labels(db, project, changes.pop("label_ids") or [])
@@ -194,10 +200,14 @@ def update_task(
         if old_ids != new_ids:
             activity.record(db, task, user, "updated", "labels", old_ids, new_ids)
             task.labels = new
+    notes = []
     if "state_id" in changes:
         sid = changes.pop("state_id")
         if sid is not None and sid != task.state_id:
-            activity.record(db, task, user, "updated", "state", task.state.name, db.get(State, sid).name)
+            new_state = db.get(State, sid)
+            activity.record(db, task, user, "updated", "state", task.state.name, new_state.name)
+            notes += notify.notify(db, task, user, NotificationKind.status, f"{user.name} moved {task.key} to {new_state.name}",
+                                   [task.assignee_id, task.reporter_id])
             task.rank = ordering.next_rank_at_bottom(db, project.id, sid)
             _apply_state(task, db.get(State, sid))
     for field, value in changes.items():
@@ -205,7 +215,14 @@ def update_task(
         if old != value:
             activity.record(db, task, user, "updated", field, old, value)
             setattr(task, field, value)
+            if field == "assignee_id" and value is not None:
+                notes += notify.notify(db, task, user, NotificationKind.assigned, f"{user.name} assigned you {task.key}: {task.title}", [value])
+            if field == "description":
+                before = {u.id for u in notify.mentioned_users(db, project.workspace_id, old or "")}
+                notes += notify.notify(db, task, user, NotificationKind.mentioned, f"{user.name} mentioned you in {task.key}: {task.title}",
+                                       [u.id for u in notify.mentioned_users(db, project.workspace_id, value or "") if u.id not in before])
     db.commit()
+    notify.push(db, notes)
     out = serialize_one(db, task)
     hub.publish(project.id, "task.updated", out.model_dump(mode="json"), user.id)
     return out
@@ -220,14 +237,14 @@ def move_task(
     task = _get_task(db, project, task_id)
     state = db.get(State, body.state_id)
     if state is None or state.project_id != project.id:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "state_id is not in this project")
+        raise HTTPException(422, "state_id is not in this project")
 
     def neighbour(nid):
         if nid is None:
             return None
         n = _get_task(db, project, nid)
         if n.state_id != state.id:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "neighbour is in a different column")
+            raise HTTPException(422, "neighbour is in a different column")
         return n
 
     above, below = neighbour(body.before_id), neighbour(body.after_id)
@@ -235,10 +252,14 @@ def move_task(
         ordering.renumber_column(db, project.id, state.id)
         db.flush()
     task.rank = ordering.rank_between(above.rank if above else None, below.rank if below else None)
+    notes = []
     if state.id != task.state_id:
         activity.record(db, task, user, "updated", "state", task.state.name, state.name)
+        notes = notify.notify(db, task, user, NotificationKind.status, f"{user.name} moved {task.key} to {state.name}",
+                              [task.assignee_id, task.reporter_id])
         _apply_state(task, state)
     db.commit()
+    notify.push(db, notes)
     out = serialize_one(db, task)
     hub.publish(project.id, "task.moved", out.model_dump(mode="json"), user.id)
     return out
@@ -307,7 +328,13 @@ def add_comment(
     c = Comment(task_id=task.id, author_id=user.id, body=body.body)
     db.add(c)
     activity.record(db, task, user, "commented")
+    mentioned = [u.id for u in notify.mentioned_users(db, project.workspace_id, body.body)]
+    snippet = body.body if len(body.body) <= 90 else body.body[:87] + "..."
+    notes = notify.notify(db, task, user, NotificationKind.mentioned, f"{user.name} mentioned you on {task.key}: \"{snippet}\"", mentioned)
+    notes += notify.notify(db, task, user, NotificationKind.commented, f"{user.name} commented on {task.key}: \"{snippet}\"",
+                           [u for u in (task.assignee_id, task.reporter_id) if u not in mentioned])
     db.commit()
+    notify.push(db, notes)
     db.refresh(c)
     hub.publish(project.id, "comment.created", {"task_id": task.id, "id": c.id}, user.id)
     return c

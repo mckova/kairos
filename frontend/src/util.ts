@@ -31,3 +31,9 @@ export const addDays = (d: string, n: number) => {
   const x = new Date(d + "T00:00:00"); x.setDate(x.getDate() + n);
   return iso(x);
 };
+
+/** Keyboard support for elements that cannot be a <button> (cards, table rows): Tab to focus, Enter/Space to activate. */
+export const pressable = (fn: () => void) => ({
+  role: "button" as const, tabIndex: 0, onClick: fn,
+  onKeyDown: (e: React.KeyboardEvent) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); fn(); } },
+});

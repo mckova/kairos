@@ -76,7 +76,7 @@ def ai_status(_: User = Depends(current_user)):
 def chat(project_id: int, body: ChatIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     project = load_project(db, user, project_id)
     if body.messages[-1].role != "user":
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "last message must come from the user")
+        raise HTTPException(422, "last message must come from the user")
     return _guard(copilot.run_copilot, db, user, project, [m.model_dump() for m in body.messages])
 
 
@@ -125,3 +125,52 @@ def report(project_id: int, body: ReportIn, user: User = Depends(current_user), 
     else:
         sprint = db.query(Sprint).filter_by(project_id=project.id, status=SprintStatus.active).first()
     return {"markdown": _guard(copilot.status_report, db, user, project, sprint)}
+
+
+class TriageIn(BaseModel):
+    title: str = Field(min_length=2, max_length=255)
+    description: str = Field(default="", max_length=10_000)
+
+
+@router.post("/api/projects/{project_id}/ai/triage")
+def triage(project_id: int, body: TriageIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Suggest priority, estimate, labels and an owner for a draft task, and flag likely duplicates."""
+    from collections import defaultdict
+
+    project = load_project(db, user, project_id, Role.member)
+    tasks = db.query(Task).filter_by(project_id=project.id, archived=False).order_by(Task.id.desc()).limit(150).all()
+    open_pts: dict[int | None, float] = defaultdict(float)
+    done_titles: dict[int | None, list[str]] = defaultdict(list)
+    for t in tasks:
+        if t.state.group.value in ("completed", "cancelled"):
+            done_titles[t.assignee_id].append(t.title)
+        else:
+            open_pts[t.assignee_id] += t.estimate or 1
+    people = [{"id": m.user_id, "name": m.user.name, "weekly_capacity": m.weekly_capacity,
+               "open_points": open_pts.get(m.user_id, 0), "recently_done": done_titles.get(m.user_id, [])[:8]}
+              for m in db.query(Membership).filter_by(workspace_id=project.workspace_id) if m.role != Role.viewer]
+    existing = [{"id": t.id, "key": t.key, "title": t.title, "state": t.state.name, "estimate": t.estimate,
+                 "priority": t.priority.value, "assignee_id": t.assignee_id} for t in tasks]
+    data = _guard(copilot.triage, project, body.title, body.description, existing, people)
+    by_id = {t.id: t for t in tasks}
+    for d in data["duplicates"]:
+        d["key"], d["title"] = by_id[d["task_id"]].key, by_id[d["task_id"]].title
+    return data
+
+
+@router.post("/api/me/ai/plan")
+def plan_my_day(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """AI daily plan across every project: what to focus on today, what to chase, what changed."""
+    from ..models import Notification
+    from .me import my_open_tasks
+
+    tasks = my_open_tasks(db, user)
+    unread = (db.query(Notification).filter(Notification.user_id == user.id, Notification.read_at.is_(None))
+              .order_by(Notification.created_at.desc()).limit(25).all())
+    facts = [t.model_dump(mode="json") for t in tasks]
+    data = _guard(copilot.plan_day, user, facts, [n.text for n in unread])
+    by_id = {t.id: t for t in tasks}
+    for f in data["focus"]:
+        t = by_id[f["task_id"]]
+        f.update(key=t.key, title=t.title, project_id=t.project_id, project_name=t.project_name)
+    return data

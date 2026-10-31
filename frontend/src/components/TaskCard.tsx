@@ -1,6 +1,6 @@
 import { useStore } from "../store";
 import type { Task } from "../types";
-import { PRIORITY, fmtDate, today } from "../util";
+import { PRIORITY, fmtDate, today, pressable } from "../util";
 import { Avatar } from "./Avatar";
 
 export function TaskCard({ task, onDragStart, critical }: { task: Task; onDragStart?: (e: React.DragEvent) => void; critical?: boolean }) {
@@ -13,7 +13,7 @@ export function TaskCard({ task, onDragStart, critical }: { task: Task; onDragSt
   const done = project.states.find((s) => s.id === task.state_id)?.group === "completed";
   const overdue = !done && task.due_date && task.due_date < today();
   return (
-    <div className={`card${critical ? " critical" : ""}`} draggable={!!onDragStart} onDragStart={onDragStart} onClick={() => openTask(task.id)} data-task={task.id}>
+    <div className={`card${critical ? " critical" : ""}`} draggable={!!onDragStart} onDragStart={onDragStart} {...pressable(() => openTask(task.id))} aria-label={`${task.key} ${task.title}`} data-task={task.id}>
       <div className="card-top">
         <span className="key">{task.key}</span>
         {task.priority !== "none" && <span className="prio" style={{ color: PRIORITY[task.priority].color }} title={PRIORITY[task.priority].label}>{PRIORITY[task.priority].icon}</span>}

@@ -3,7 +3,7 @@ import { api } from "../api";
 import { Avatar } from "../components/Avatar";
 import { useStore } from "../store";
 import type { Task } from "../types";
-import { PRIORITY, fmtDate, today } from "../util";
+import { PRIORITY, fmtDate, today, pressable } from "../util";
 
 type Key = "key" | "title" | "state" | "priority" | "assignee" | "estimate" | "due";
 
@@ -43,7 +43,7 @@ export function ListView() {
             const st = stateOf(t);
             const late = t.due_date && t.due_date < today() && !["completed", "cancelled"].includes(st.group);
             return (
-              <tr key={t.id} onClick={() => s.openTask(t.id)}>
+              <tr key={t.id} {...pressable(() => s.openTask(t.id))}>
                 <td className="key">{t.key}</td>
                 <td className="title-cell">{t.title}{t.blocked_by.length > 0 && <span className="chip warn small">⛔</span>}</td>
                 <td onClick={(e) => e.stopPropagation()}>

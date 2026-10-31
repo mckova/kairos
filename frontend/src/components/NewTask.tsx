@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
-import type { Task } from "../types";
+import type { Task, Triage } from "../types";
 import { PRIORITY } from "../util";
 
 export function NewTask({ stateId, onClose }: { stateId?: number; onClose: () => void }) {
@@ -23,6 +23,21 @@ export function NewTask({ stateId, onClose }: { stateId?: number; onClose: () =>
       setLabelIds(r.label_ids); setDesc(r.description);
     } catch (err) { s.toast((err as Error).message); } finally { setBusy(false); }
   };
+  const [tri, setTri] = useState<Triage | null>(null);
+  const [triBusy, setTriBusy] = useState(false);
+  const triage = async () => {
+    if (f.title.trim().length < 3) return;
+    setTriBusy(true);
+    try { setTri(await api<Triage>(`/api/projects/${s.project.id}/ai/triage`, { method: "POST", json: { title: f.title.trim(), description: desc } })); }
+    catch (err) { s.toast((err as Error).message); } finally { setTriBusy(false); }
+  };
+  const applyTriage = () => {
+    if (!tri) return;
+    setF({ ...f, priority: tri.priority, estimate: tri.estimate != null ? String(tri.estimate) : f.estimate, assignee_id: tri.assignee_id ? String(tri.assignee_id) : f.assignee_id });
+    if (tri.label_ids.length) setLabelIds(tri.label_ids);
+    setTri(null);
+  };
+  const who = (id: number | null) => s.members.find((m) => m.user.id === id)?.user.name;
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,14 +57,34 @@ export function NewTask({ stateId, onClose }: { stateId?: number; onClose: () =>
     } catch (err) { s.toast((err as Error).message); setBusy(false); }
   };
   return (
-    <div className="modal-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="modal-wrap" onMouseDown={(e) => e.target === e.currentTarget && onClose()} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }}>
       <form className="modal" onSubmit={submit}>
         <h3>New task in {s.project.name}</h3>
         <div className="ai-capture">
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="✦ Describe it in your own words - e.g. “Dor should fix the flaky checkout test by Thursday, urgent, ~2 pts”" />
           <button type="button" className="ai-btn" onClick={fill} disabled={busy || !note.trim()}>{busy ? "Reading…" : "✦ Fill with AI"}</button>
         </div>
-        <input autoFocus className="title-input" placeholder="What needs to be done?" value={f.title} onChange={set("title")} />
+        <div className="title-row">
+          <input autoFocus className="title-input" placeholder="What needs to be done?" value={f.title} onChange={set("title")} />
+          <button type="button" className="ai-btn" onClick={triage} disabled={triBusy || f.title.trim().length < 3} title="Suggest priority, estimate, labels and owner; check for duplicates">{triBusy ? "Triaging…" : "✦ Triage"}</button>
+        </div>
+        {tri && (
+          <div className="triage">
+            {!!tri.duplicates.length && (
+              <div className="dupes">⚠ Possible duplicate{tri.duplicates.length > 1 ? "s" : ""}:
+                {tri.duplicates.map((d) => <button type="button" key={d.task_id} className="link-btn" onClick={() => { onClose(); s.openTask(d.task_id); }} title={d.reason}><span className="key">{d.key}</span> {d.title}</button>)}
+              </div>
+            )}
+            <div className="tri-sugg">
+              <span><b>{PRIORITY[tri.priority].icon} {PRIORITY[tri.priority].label}</b></span>
+              <span><b>{tri.estimate ?? "?"} pts</b></span>
+              {tri.assignee_id && <span title={tri.assignee_reason}>→ <b>{who(tri.assignee_id)}</b> <small className="muted">{tri.assignee_reason}</small></span>}
+              {tri.label_ids.map((id) => <span key={id} className="chip">{s.project.labels.find((l) => l.id === id)?.name}</span>)}
+            </div>
+            <small className="muted">{tri.rationale}</small>
+            <div className="tri-actions"><button type="button" className="ghost" onClick={() => setTri(null)}>Dismiss</button><button type="button" className="primary" onClick={applyTriage}>Apply suggestions</button></div>
+          </div>
+        )}
         <div className="grid2">
           <label>Status<select value={f.state_id} onChange={set("state_id")}><option value="">Default (To do)</option>{s.project.states.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}</select></label>
           <label>Priority<select value={f.priority} onChange={set("priority")}>{Object.entries(PRIORITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></label>

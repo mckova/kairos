@@ -231,3 +231,27 @@ class TaskActivity(Base):
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     actor: Mapped[User | None] = relationship()
+
+
+class NotificationKind(str, enum.Enum):
+    assigned = "assigned"
+    mentioned = "mentioned"
+    commented = "commented"
+    status = "status"
+
+
+class Notification(Base):
+    """Per-user inbox entry. Created by services/notify.py; never for the actor themself."""
+
+    __tablename__ = "notifications"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    kind: Mapped[NotificationKind] = mapped_column(Enum(NotificationKind))
+    text: Mapped[str] = mapped_column(String(300))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    actor: Mapped[User | None] = relationship(foreign_keys=[actor_id])
+    task: Mapped[Task] = relationship()

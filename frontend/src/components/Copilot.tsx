@@ -16,7 +16,7 @@ const SUGGESTIONS = [
 const ACTION_LABEL: Record<string, string> = { create_task: "Created task", update_task: "Updated", add_dependency: "Linked", add_comment: "Commented" };
 
 /** Chat panel for the project copilot - Claude with tools over this project's data. */
-export function Copilot({ onClose }: { onClose: () => void }) {
+export function Copilot({ onClose, initial }: { onClose: () => void; initial?: string }) {
   const s = useStore();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
@@ -24,6 +24,8 @@ export function Copilot({ onClose }: { onClose: () => void }) {
   const [err, setErr] = useState("");
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, busy]);
+  const sentInitial = useRef("");
+  useEffect(() => { if (initial && sentInitial.current !== initial) { sentInitial.current = initial; send(initial); } }, [initial]);
 
   const send = async (text: string) => {
     if (!text.trim() || busy) return;

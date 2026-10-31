@@ -4,7 +4,7 @@ import { Avatar } from "../components/Avatar";
 import { Bars, Gauge } from "../components/Charts";
 import { useStore } from "../store";
 import type { Activity } from "../types";
-import { PRIORITY, ago, fmtDate } from "../util";
+import { PRIORITY, ago, fmtDate, pressable } from "../util";
 
 interface Summary {
   tasks_total: number; by_group: Record<string, number>; by_state: Record<string, number>; open_by_priority: Record<string, number>;
@@ -48,7 +48,7 @@ export function Insights() {
           <h3>Risk radar <small className="muted">{risks.length} findings</small></h3>
           <ul className="risks">
             {risks.map((r, i) => (
-              <li key={i} className={r.severity} onClick={() => r.task_id && s.openTask(r.task_id)}>
+              <li key={i} className={r.severity} {...(r.task_id ? pressable(() => s.openTask(r.task_id!)) : {})}>
                 <span>{SEV_ICON[r.severity]}</span>
                 <div><b>{r.message}</b><small>{r.action}</small></div>
               </li>
@@ -83,7 +83,7 @@ export function Insights() {
           <h3>Recent activity</h3>
           <ul className="activity feed">
             {feed.map((a) => (
-              <li key={a.id} onClick={() => s.openTask(a.task_id)}>
+              <li key={a.id} {...pressable(() => s.openTask(a.task_id))}>
                 <Avatar user={a.actor} size={18} />
                 <span><b>{a.actor?.name ?? "System"}</b> {a.verb === "updated" ? `changed ${a.field}${a.field === "state" ? ` → ${a.new_value}` : ""}` : a.verb} on <span className="key">{taskKey(a.task_id)}</span> <small>{ago(a.created_at)}</small></span>
               </li>

@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useStore } from "../store";
 import type { Activity, Comment, Task } from "../types";
-import { PRIORITY, ago, fmtDate } from "../util";
+import { PRIORITY, ago, fmtDate, pressable } from "../util";
 import { Avatar } from "./Avatar";
 import { Breakdown } from "./Breakdown";
+import { Confirm } from "./Confirm";
 
 const FIELD_LABEL: Record<string, string> = {
   state: "status", assignee_id: "assignee", sprint_id: "sprint", due_date: "due date", start_date: "start date",
@@ -21,6 +22,7 @@ export function TaskDrawer() {
   const [draft, setDraft] = useState("");
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
   const base = `/api/projects/${project.id}`;
 
   const loadSide = async (id: number) => {
@@ -30,7 +32,7 @@ export function TaskDrawer() {
   useEffect(() => { if (task) { setTitle(task.title); setDesc(task.description); } }, [task?.id, task?.title, task?.description]);
   useEffect(() => { if (openId) loadSide(openId); }, [openId, task?.updated_at]);
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && openTask(null);
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector(".modal-wrap")) openTask(null); };
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, []);
@@ -54,7 +56,7 @@ export function TaskDrawer() {
     setDraft(""); loadSide(task.id);
   };
   const del = async () => {
-    if (!window.confirm(`Delete ${task.key}?`)) return;
+    setConfirmDel(false);
     await api(`${base}/tasks/${task.id}`, { method: "DELETE" });
     s.remove(task.id); openTask(null);
   };
@@ -68,7 +70,7 @@ export function TaskDrawer() {
         <header className="drawer-head">
           <span className="key">{task.key}</span>
           <span className="spacer" />
-          <button className="ghost danger" onClick={del}>Delete</button>
+          <button className="ghost danger" onClick={() => setConfirmDel(true)}>Delete</button>
           <button className="ghost" onClick={() => openTask(null)} aria-label="Close">✕</button>
         </header>
         <input className="title-input" value={title} onChange={(e) => setTitle(e.target.value)}
@@ -120,13 +122,13 @@ export function TaskDrawer() {
           onChange={(e) => setDesc(e.target.value)} onBlur={() => desc !== task.description && patch({ description: desc })} />
 
         <h4>Subtasks</h4>
-        {tasks.filter((t) => t.parent_id === task.id).map((t) => <div key={t.id} className="dep-row link" onClick={() => openTask(t.id)}><span className="key">{t.key}</span> {t.title}<span className="spacer" /><span className="pts">{t.estimate ?? "?"}</span></div>)}
+        {tasks.filter((t) => t.parent_id === task.id).map((t) => <div key={t.id} className="dep-row link" {...pressable(() => openTask(t.id))}><span className="key">{t.key}</span> {t.title}<span className="spacer" /><span className="pts">{t.estimate ?? "?"}</span></div>)}
         <Breakdown key={task.id} task={task} />
 
         <h4>Dependencies</h4>
         <div className="deps">
           <div><small>Blocked by</small>
-            {task.blocked_by.map((id) => <div key={id} className="dep-row"><span className="key">{byId(id)?.key}</span> {byId(id)?.title}<button className="ghost" onClick={() => rmDep(id)}>✕</button></div>)}
+            {task.blocked_by.map((id) => <div key={id} className="dep-row"><span className="key">{byId(id)?.key}</span> {byId(id)?.title}<button className="ghost" onClick={() => rmDep(id)} aria-label={`Remove dependency on ${byId(id)?.key}`}>✕</button></div>)}
             <select value="" onChange={(e) => e.target.value && addDep(+e.target.value)}>
               <option value="">+ Add blocker…</option>
               {candidates.map((t) => <option key={t.id} value={t.id}>{t.key} {t.title}</option>)}
@@ -166,6 +168,7 @@ export function TaskDrawer() {
         )}
         <footer className="drawer-foot"><small>Created {fmtDate(task.created_at, { day: "numeric", month: "short", year: "numeric" })}{task.completed_at && ` · Completed ${fmtDate(task.completed_at)}`}</small></footer>
       </aside>
+      {confirmDel && <Confirm title={`Delete ${task.key}?`} body={`“${task.title}”, its comments and its history will be removed for everyone. This cannot be undone.`} action="Delete task" onConfirm={del} onCancel={() => setConfirmDel(false)} />}
     </>
   );
 }

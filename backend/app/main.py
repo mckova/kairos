@@ -11,7 +11,7 @@ from .auth import decode_token
 from .db import Base, SessionLocal, engine
 from .models import Membership, Project
 from .realtime import hub
-from .routers import ai, analytics, auth, projects, sprints, tasks, workspaces
+from .routers import ai, analytics, auth, me, projects, sprints, tasks, workspaces
 
 
 @asynccontextmanager
@@ -28,7 +28,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-for r in (auth, workspaces, projects, tasks, sprints, analytics, ai):
+for r in (auth, workspaces, projects, tasks, sprints, analytics, ai, me):
     app.include_router(r.router)
 
 
@@ -59,6 +59,26 @@ async def project_socket(ws: WebSocket, project_id: int, token: str):
         pass
     finally:
         hub.leave(project_id, ws)
+
+
+@app.websocket("/ws/me")
+async def user_socket(ws: WebSocket, token: str):
+    """Personal channel: inbox notifications for the signed-in user."""
+    try:
+        user_id = decode_token(token)
+    except Exception:
+        await ws.close(code=4401)
+        return
+    await ws.accept()
+    channel = f"user:{user_id}"
+    await hub.join(channel, ws)
+    try:
+        while True:
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        hub.leave(channel, ws)
 
 
 # Serve the built SPA when present (single-container deployment).

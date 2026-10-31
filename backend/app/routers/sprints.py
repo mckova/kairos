@@ -46,7 +46,7 @@ def update_sprint(
     for k, v in changes.items():
         setattr(s, k, v)
     if s.end_date < s.start_date:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "end_date must be on or after start_date")
+        raise HTTPException(422, "end_date must be on or after start_date")
     # Closing a sprint rolls unfinished work back to the backlog (sprint_id = NULL).
     if changes.get("status") == SprintStatus.closed:
         for t in db.query(Task).filter_by(sprint_id=s.id).all():

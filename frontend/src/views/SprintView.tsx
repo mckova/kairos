@@ -5,7 +5,7 @@ import { Gauge, LineChart } from "../components/Charts";
 import { Markdown } from "../components/Markdown";
 import { useStore } from "../store";
 import type { Sprint, Task } from "../types";
-import { PRIORITY, addDays, fmtDate, today } from "../util";
+import { PRIORITY, addDays, fmtDate, today, pressable } from "../util";
 
 interface Burndown { scope: number; series: { date: string; ideal: number; remaining?: number }[] }
 interface Forecast { remaining_points: number; probability_on_time: number | null; p50: string | null; p85: string | null; p95: string | null; basis: string; deadline: string | null }
@@ -148,7 +148,7 @@ function PlanList({ title, tasks, action, onAction }: { title: string; tasks: Ta
         {tasks.map((t) => (
           <li key={t.id}>
             <span className="key">{t.key}</span>
-            <span className="plan-title" onClick={() => s.openTask(t.id)}>{t.title}</span>
+            <span className="plan-title" {...pressable(() => s.openTask(t.id))}>{t.title}</span>
             <span className="pts">{t.estimate ?? "?"}</span>
             <Avatar user={s.userById(t.assignee_id)} size={20} />
             <button className="ghost small" onClick={() => onAction(t)}>{action}</button>
