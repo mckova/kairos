@@ -1049,3 +1049,20 @@ button.icon, .drawer header button.icon, .copilot header button.icon { width: 38
 .modal select { appearance: none; -webkit-appearance: none; }
 .modal .title-row .title-input, .modal input.title-input { background-color: var(--well) !important; box-shadow: var(--inset); }
 .modal .title-input { box-shadow: var(--inset) !important; margin: 0 !important; padding: 0 18px !important; border-radius: 18px; border: 0; }
+
+/* contrast: secondary text clears 4.5:1, and text on the pale dark-mode accent is dark */
+:root { --ink-soft: rgba(20, 27, 36, .74); --ink-faint: rgba(20, 27, 36, .62); }
+:root[data-theme="dark"] { --ink-soft: rgba(232, 237, 242, .78); --ink-faint: rgba(232, 237, 242, .62); }
+:root[data-theme="dark"] .toolbar button.primary,
+:root[data-theme="dark"] .login-card button.primary,
+:root[data-theme="dark"] .modal button.primary,
+:root[data-theme="dark"] .drawer button.primary,
+:root[data-theme="dark"] .copilot button.primary,
+:root[data-theme="dark"] button.primary,
+:root[data-theme="dark"] .segmented button.on,
+:root[data-theme="dark"] .segmented button.on:hover:not(:disabled),
+:root[data-theme="dark"] .inbox .seg button.on,
+:root[data-theme="dark"] .rail-btn.on,
+:root[data-theme="dark"] .week .tile.now { color: var(--accent-ink); }
+:root[data-theme="dark"] button.primary { background: var(--accent); }
+:root { --risk: #bd4837; }
